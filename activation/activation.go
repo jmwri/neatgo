@@ -4,6 +4,24 @@ import "math"
 
 type Fn func(x float64) float64
 
+var FnAll = []Fn{
+	Nil,
+	Sigmoid,
+	Tanh,
+	Sin,
+	Gauss,
+	Relu,
+	Softplus,
+	Clamped,
+	Inv,
+	Log,
+	Exp,
+	Abs,
+	Hat,
+	Square,
+	Cube,
+}
+
 func Nil(x float64) float64 {
 	return x
 }
