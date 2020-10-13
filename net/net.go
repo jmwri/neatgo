@@ -3,15 +3,20 @@ package net
 import (
 	"errors"
 	"fmt"
-	"neatgo"
+	"neatgo/activation"
+	"neatgo/aggregation"
+	"neatgo/util"
 )
 
 var ErrInputLen = errors.New("input length does not match input layer")
 var ErrShapeNotBigEnough = errors.New("shape must be at least 2")
 
 type NeuralNetwork interface {
-	neatgo.Identifier
+	ID() int64
 	Activate(inputs []float64) ([]float64, error)
+	Copy() NeuralNetwork
+	Layers() []Layer
+	Connections() []LayerConnections
 }
 
 func NewFeedForwardFromDefinition(id int64, layerDefinitions []LayerDefinition) (*FeedForward, error) {
@@ -25,19 +30,28 @@ func NewFeedForwardFromDefinition(id int64, layerDefinitions []LayerDefinition) 
 	for i := 0; i < len(layerDefinitions); i++ {
 		layers[i] = make([]*Node, layerDefinitions[i].NumNodes)
 		for ni := 0; ni < layerDefinitions[i].NumNodes; ni++ {
-			layers[i][ni] = NewNode(nodeID, layerDefinitions[i].ActivationFn)
+			bias := util.RandFloat(layerDefinitions[i].BiasInitMin, layerDefinitions[i].BiasInitMax)
+			activationFn := layerDefinitions[i].ActivationFn
+			if activationFn == nil {
+				activationFn = activation.Nil
+			}
+			aggregationFn := layerDefinitions[i].AggregationFn
+			if aggregationFn == nil {
+				aggregationFn = aggregation.Sum
+			}
+			layers[i][ni] = NewNode(nodeID, bias, activationFn, aggregationFn)
 			nodeID++
 		}
 	}
 
-	connections := make([]LayerConnections, len(layers) - 1)
+	connections := make([]LayerConnections, len(layers)-1)
 	// Fully-connect our layers
 	var connID int64 = 0
-	for i := 0; i < len(layers) - 1; i++ {
+	for i := 0; i < len(layers)-1; i++ {
 		connections[i] = make([]*Connection, 0)
 		for _, nodeFrom := range layers[i] {
 			for _, nodeTo := range layers[i+1] {
-				c := NewConnection(connID, 1, nodeFrom.ID(), nodeTo.ID())
+				c := NewConnection(connID, 1, nodeFrom.ID(), nodeTo.ID(), true)
 				connections[i] = append(connections[i], c)
 				connID++
 			}
@@ -63,6 +77,14 @@ type FeedForward struct {
 
 func (n *FeedForward) ID() int64 {
 	return n.id
+}
+
+func (n *FeedForward) Layers() []Layer {
+	return n.layers
+}
+
+func (n *FeedForward) Connections() []LayerConnections {
+	return n.connections
 }
 
 func (n *FeedForward) Activate(inputs []float64) ([]float64, error) {
@@ -95,11 +117,12 @@ func (n *FeedForward) Activate(inputs []float64) ([]float64, error) {
 		nodeOutputs := make(map[int64]float64, len(layer))
 		for _, node := range layer {
 			nodeOutput := node.Activate(layerInputs[node.ID()], layerWeights[node.ID()])
+			node.SetActivation(nodeOutput)
 			nodeOutputs[node.ID()] = nodeOutput
 		}
 
 		// If we're on the output layer, then don't need to calculate inputs for next nodes...
-		if layerI == len(n.layers) -1 {
+		if layerI == len(n.layers)-1 {
 			for i, node := range layer {
 				output[i] = nodeOutputs[node.ID()]
 			}
@@ -111,6 +134,9 @@ func (n *FeedForward) Activate(inputs []float64) ([]float64, error) {
 
 		// Rebuild inputs based on the links from nodes in this layer
 		for _, conn := range n.connections[layerI] {
+			if !conn.Enabled() {
+				continue
+			}
 			if _, ok := layerInputs[conn.To()]; !ok {
 				layerInputs[conn.To()] = make([]float64, 0)
 			}
@@ -123,4 +149,23 @@ func (n *FeedForward) Activate(inputs []float64) ([]float64, error) {
 	}
 
 	return output, nil
+}
+
+func (n *FeedForward) Copy() NeuralNetwork {
+	layersCp := make([]Layer, len(n.layers))
+	for i := 0; i < len(n.layers); i++ {
+		layersCp[i] = make(Layer, len(n.layers[i]))
+		for ni := 0; ni < len(n.layers[i]); ni++ {
+			layersCp[i][ni] = n.layers[i][ni].Copy()
+		}
+	}
+
+	connectionsCp := make([]LayerConnections, len(n.connections))
+	for i := 0; i < len(n.connections); i++ {
+		connectionsCp[i] = make(LayerConnections, len(n.connections[i]))
+		for ni := 0; ni < len(n.connections[i]); ni++ {
+			connectionsCp[i][ni] = n.connections[i][ni].Copy()
+		}
+	}
+	return NewFeedForward(n.id, layersCp, connectionsCp)
 }

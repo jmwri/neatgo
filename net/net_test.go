@@ -1,7 +1,6 @@
 package net_test
 
 import (
-	"neatgo/activation"
 	"neatgo/net"
 	"neatgo/util"
 	"testing"
@@ -10,18 +9,9 @@ import (
 func TestFeedForward_Activate(t *testing.T) {
 	var n net.NeuralNetwork
 	layerDefinitions := []net.LayerDefinition{
-		{
-			NumNodes:     2,
-			ActivationFn: activation.Nil,
-		},
-		{
-			NumNodes:     3,
-			ActivationFn: activation.Nil,
-		},
-		{
-			NumNodes:     2,
-			ActivationFn: activation.Nil,
-		},
+		net.NewLayerDefinition(2, 0, 0, nil, nil),
+		net.NewLayerDefinition(3, 0, 0, nil, nil),
+		net.NewLayerDefinition(2, 0, 0, nil, nil),
 	}
 	n, _ = net.NewFeedForwardFromDefinition(1, layerDefinitions)
 
