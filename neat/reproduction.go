@@ -13,6 +13,7 @@ func NewReproduction(cfg *Config, stagnation *Stagnation) *Reproduction {
 		cfg:          cfg,
 		currentIndex: 1,
 		stagnation:   stagnation,
+		ancestors:    make(map[int64]*AncestorPair),
 	}
 }
 
