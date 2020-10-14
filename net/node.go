@@ -1,8 +1,8 @@
 package net
 
 import (
-	"neatgo/activation"
-	"neatgo/aggregation"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
 )
 
 func NewNode(id int64, bias float64, activationFn activation.Fn, aggregationFn aggregation.Fn) *Node {

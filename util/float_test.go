@@ -2,8 +2,8 @@ package util_test
 
 import (
 	"fmt"
+	"github.com/jmwri/neatgo/util"
 	"math/rand"
-	"neatgo/util"
 	"testing"
 )
 

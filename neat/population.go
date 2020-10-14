@@ -2,7 +2,7 @@ package neat
 
 import (
 	"fmt"
-	"neatgo/aggregation"
+	"github.com/jmwri/neatgo/aggregation"
 )
 
 func NewPopulation(cfg *Config, reproduction *Reproduction) (*Population, error) {
@@ -13,7 +13,7 @@ func NewPopulation(cfg *Config, reproduction *Reproduction) (*Population, error)
 	return &Population{
 		cfg:              cfg,
 		reproduction:     reproduction,
-		fitnessCriterion: aggregation.Max,
+		fitnessCriterion: cfg.FitnessCriterion,
 		population:       initPopulation,
 		species:          NewSpeciesSet(cfg),
 		generation:       0,

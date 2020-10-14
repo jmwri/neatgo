@@ -1,9 +1,9 @@
 package neat
 
 import (
+	"github.com/jmwri/neatgo/aggregation"
+	"github.com/jmwri/neatgo/util"
 	"log"
-	"neatgo/aggregation"
-	"neatgo/util"
 	"sort"
 )
 

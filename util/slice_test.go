@@ -2,7 +2,7 @@ package util_test
 
 import (
 	"fmt"
-	"neatgo/util"
+	"github.com/jmwri/neatgo/util"
 	"testing"
 )
 

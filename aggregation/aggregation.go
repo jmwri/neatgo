@@ -1,8 +1,8 @@
 package aggregation
 
 import (
+	"github.com/jmwri/neatgo/util"
 	"math"
-	"neatgo/util"
 )
 
 type Fn func(x []float64) float64

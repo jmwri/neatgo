@@ -2,9 +2,9 @@ package neat
 
 import (
 	"fmt"
+	"github.com/jmwri/neatgo/aggregation"
 	"math"
 	"math/rand"
-	"neatgo/aggregation"
 	"sort"
 )
 

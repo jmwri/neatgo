@@ -3,9 +3,9 @@ package net
 import (
 	"errors"
 	"fmt"
-	"neatgo/activation"
-	"neatgo/aggregation"
-	"neatgo/util"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
+	"github.com/jmwri/neatgo/util"
 )
 
 var ErrInputLen = errors.New("input length does not match input layer")

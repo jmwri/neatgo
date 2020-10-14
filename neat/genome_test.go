@@ -1,9 +1,9 @@
 package neat_test
 
 import (
-	"neatgo/neat"
-	"neatgo/net"
-	"neatgo/util"
+	"github.com/jmwri/neatgo/neat"
+	"github.com/jmwri/neatgo/net"
+	"github.com/jmwri/neatgo/util"
 	"testing"
 )
 
