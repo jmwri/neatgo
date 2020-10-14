@@ -14,6 +14,18 @@ func SliceOfFloatEqual(a, b []float64) bool {
 	return true
 }
 
+func SliceOfInt64Equal(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func SortSliceOfFloatAsc(x []float64) {
 	sort.Slice(x, func(i, j int) bool {
 		return x[i] < x[j]
