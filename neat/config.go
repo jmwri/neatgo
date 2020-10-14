@@ -5,6 +5,59 @@ import (
 	"github.com/jmwri/neatgo/aggregation"
 )
 
+func NewConfig(popSize int, numInputs int, numOutputs int) Config {
+	return Config{
+		FitnessCriterion:                 aggregation.Max,
+		FitnessThreshold:                 0,
+		NoFitnessTermination:             true,
+		PopulationSize:                   popSize,
+		ResetOnExtinction:                false,
+		SpeciesFitnessFn:                 aggregation.Mean,
+		MaxStagnation:                    15,
+		SpeciesElitism:                   0,
+		Elitism:                          0,
+		SurvivalThreshold:                0.2,
+		MinSpeciesSize:                   2,
+		FitnessMinDivisor:                1,
+		ActivationDefault:                activation.Sigmoid,
+		ActivationMutateRate:             .05,
+		ActivationOptions:                activation.FnAll,
+		AggregationDefault:               aggregation.Sum,
+		AggregationMutateRate:            .05,
+		AggregationOptions:               aggregation.FnAll,
+		BiasInitMax:                      1,
+		BiasInitMin:                      0,
+		BiasMaxValue:                     1,
+		BiasMinValue:                     0,
+		BiasMutatePower:                  .02,
+		BiasMutateRate:                   .2,
+		BiasReplaceRate:                  .1,
+		CompatibilityThreshold:           .2,
+		CompatibilityDisjointCoefficient: .2,
+		CompatibilityWeightCoefficient:   .2,
+		ConnAddProb:                      .1,
+		ConnDeleteProb:                   .05,
+		EnabledDefault:                   true,
+		EnabledMutateRate:                .1,
+		EnabledRateToFalseAdd:            .1,
+		EnabledRateToTrueAdd:             .25,
+		NodeAddProb:                      .1,
+		NodeDeleteProb:                   .05,
+		NumHidden:                        []int{},
+		NumInputs:                        numInputs,
+		NumOutputs:                       numOutputs,
+		SingleStructuralMutation:         false,
+		StructuralMutationSurer:          false,
+		WeightInitMax:                    1,
+		WeightInitMin:                    0,
+		WeightMaxValue:                   1,
+		WeightMinValue:                   0,
+		WeightMutatePower:                0.02,
+		WeightMutateRate:                 0.2,
+		WeightReplaceRate:                0.1,
+	}
+}
+
 type Config struct {
 	// The NEAT section specifies parameters particular to the generic NEAT algorithm or the experiment itself. This section is always required, and is handled by the Config class itself.
 
@@ -22,7 +75,7 @@ type Config struct {
 	// The DefaultStagnation section specifies parameters for the builtin DefaultStagnation class. This section is only necessary if you specify this class as the stagnation implementation when creating the Config instance; otherwise you need to include whatever configuration (if any) is required for your particular implementation.
 
 	// The function used to compute species fitness. This defaults to ``mean``. Allowed values are: max, min, mean, and median
-	SpeciesFitnessFn string
+	SpeciesFitnessFn aggregation.Fn
 	// Species that have not shown improvement in more than this number of generations will be considered stagnant and removed. This defaults to 15.
 	MaxStagnation int
 	// The number of species that will be protected from stagnation; mainly intended to prevent total extinctions caused by all species becoming stagnant before new species arise. For example, a species_elitism setting of 3 will prevent the 3 species with the highest species fitness from being removed for stagnation regardless of the amount of time they have not shown improvement. This defaults to 0.
@@ -96,31 +149,29 @@ type Config struct {
 	// The number of output nodes, to which the network delivers outputs.
 	NumOutputs int
 	// The mean of the normal/gaussian distribution, if it is used to select response multiplier attribute values for new nodes.
-	ResponseInitMean float64
+	//ResponseInitMean float64
 	// The standard deviation of the normal/gaussian distribution, if it is used to select response multipliers for new nodes.
-	ResponseInitStdev float64
+	//ResponseInitStdev float64
 	// If set to gaussian or normal, then the initialization is to a normal/gaussian distribution. If set to uniform, a uniform distribution from max(response_min_value,(response_init_mean−(response_init_stdev∗2))) to min(response_max_value,(response_init_mean+(response_init_stdev∗2))). (Note that the standard deviation of a uniform distribution is not range/0.25, as implied by this, but the range divided by a bit over 0.288 (the square root of 12); however, this approximation makes setting the range much easier.) This defaults to “gaussian”.
-	ResponseInitType string
+	//ResponseInitType string
 	// The maximum allowed response multiplier. Response multipliers above this value will be clamped to this value.
-	ResponseMaxValue float64
+	//ResponseMaxValue float64
 	// The minimum allowed response multiplier. Response multipliers below this value will be clamped to this value.
-	ResponseMinValue float64
+	//ResponseMinValue float64
 	// The standard deviation of the zero-centered normal/gaussian distribution from which a response multiplier mutation is drawn.
-	ResponseMutatePower float64
+	//ResponseMutatePower float64
 	// The probability that mutation will change the response multiplier of a node by adding a random value.
-	ResponseMutateRate float64
+	//ResponseMutateRate float64
 	// The probability that mutation will replace the response multiplier of a node with a newly chosen random value (as if it were a new node).
-	ResponseReplaceRate float64
+	//ResponseReplaceRate float64
 	// If this evaluates to True, only one structural mutation (the addition or removal of a node or connection) will be allowed per genome per generation. (If the probabilities for conn_add_prob, conn_delete_prob, node_add_prob, and node_delete_prob add up to over 1, the chances of each are proportional to the appropriate configuration value.) This defaults to “False”.
 	SingleStructuralMutation bool
 	// If this evaluates to True, then an attempt to add a node to a genome lacking connections will result in adding a connection instead; furthermore, if an attempt to add a connection tries to add a connection that already exists, that connection will be enabled. If this is set to default, then it acts as if it had the same value as single_structural_mutation (above). This defaults to “default”.
 	StructuralMutationSurer bool
-	// The mean of the normal/gaussian distribution used to select weight attribute values for new connections.
-	WeightInitMean float64
-	// The standard deviation of the normal/gaussian distribution used to select weight values for new connections.
-	WeightInitStdev float64
-	// If set to gaussian or normal, then the initialization is to a normal/gaussian distribution. If set to uniform, a uniform distribution from max(weight_min_value,(weight_init_mean−(weight_init_stdev∗2))) to min(weight_max_value,(weight_init_mean+(weight_init_stdev∗2))). (Note that the standard deviation of a uniform distribution is not range/0.25, as implied by this, but the range divided by a bit over 0.288 (the square root of 12); however, this approximation makes setting the range much easier.) This defaults to “gaussian”.
-	WeightInitType string
+	// The maximum init value of weight
+	WeightInitMax float64
+	// The minimum init value of weight
+	WeightInitMin float64
 	// The maximum allowed weight value. Weights above this value will be clamped to this value.
 	WeightMaxValue float64
 	// The minimum allowed weight value. Weights below this value will be clamped to this value.
