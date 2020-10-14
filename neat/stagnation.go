@@ -17,10 +17,10 @@ type SpeciesResponseItem struct {
 	IsStagnant bool
 }
 
-func NewStagnation(cfg *Config, speciesFitnessFn aggregation.Fn) *Stagnation {
+func NewStagnation(cfg *Config) *Stagnation {
 	return &Stagnation{
 		cfg:              cfg,
-		speciesFitnessFn: speciesFitnessFn,
+		speciesFitnessFn: cfg.SpeciesFitnessFn,
 	}
 }
 

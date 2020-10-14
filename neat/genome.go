@@ -18,13 +18,13 @@ func NewGenome(n net.NeuralNetwork) *Genome {
 func NewGenomeFromConfig(id int64, cfg *Config) (*Genome, error) {
 	layerDefinitions := make([]net.LayerDefinition, 0)
 	// Add input layer
-	layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(cfg.NumInputs, cfg.BiasInitMin, cfg.BiasInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
+	layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(cfg.NumInputs, cfg.BiasInitMin, cfg.BiasInitMax, cfg.WeightInitMin, cfg.WeightInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
 	// Add hidden layers
 	for _, numHidden := range cfg.NumHidden {
-		layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(numHidden, cfg.BiasInitMin, cfg.BiasInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
+		layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(numHidden, cfg.BiasInitMin, cfg.BiasInitMax, cfg.WeightInitMin, cfg.WeightInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
 	}
 	// Add output layer
-	layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(cfg.NumOutputs, cfg.BiasInitMin, cfg.BiasInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
+	layerDefinitions = append(layerDefinitions, net.NewLayerDefinition(cfg.NumOutputs, cfg.BiasInitMin, cfg.BiasInitMax, cfg.WeightInitMin, cfg.WeightInitMax, cfg.ActivationDefault, cfg.AggregationDefault))
 
 	n, err := net.NewFeedForwardFromDefinition(id, layerDefinitions)
 	if err != nil {

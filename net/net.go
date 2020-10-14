@@ -51,7 +51,9 @@ func NewFeedForwardFromDefinition(id int64, layerDefinitions []LayerDefinition) 
 		connections[i] = make([]*Connection, 0)
 		for _, nodeFrom := range layers[i] {
 			for _, nodeTo := range layers[i+1] {
-				c := NewConnection(connID, 1, nodeFrom.ID(), nodeTo.ID(), true)
+				weight := util.RandFloat(layerDefinitions[i].WeightInitMin, layerDefinitions[i].WeightInitMax)
+
+				c := NewConnection(connID, weight, nodeFrom.ID(), nodeTo.ID(), true)
 				connections[i] = append(connections[i], c)
 				connID++
 			}
