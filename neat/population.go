@@ -7,6 +7,8 @@ import (
 
 func NewPopulation(cfg *Config, reproduction *Reproduction) (*Population, error) {
 	initPopulation, err := reproduction.CreateNew(cfg.PopulationSize)
+	species := NewSpeciesSet(cfg)
+	species.Speciate(cfg, initPopulation, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -15,7 +17,7 @@ func NewPopulation(cfg *Config, reproduction *Reproduction) (*Population, error)
 		reproduction:     reproduction,
 		fitnessCriterion: cfg.FitnessCriterion,
 		population:       initPopulation,
-		species:          NewSpeciesSet(cfg),
+		species:          species,
 		generation:       0,
 		bestGenome:       nil,
 	}, nil
