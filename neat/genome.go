@@ -124,6 +124,10 @@ func (g *Genome) ID() int64 {
 	return g.n.ID()
 }
 
+func (g *Genome) Network() net.NeuralNetwork {
+	return g.n
+}
+
 func (g *Genome) Copy() *Genome {
 	cp := g.n.Copy()
 	return NewGenome(cp)
