@@ -142,9 +142,9 @@ func (r *Reproduction) Reproduce(cfg *Config, speciesSet *SpeciesSet, population
 		spawnAmount = int(math.Max(float64(spawnAmount), float64(cfg.Elitism)))
 
 		if spawnAmount <= 0 {
-			// TODO: Return err of some sort
+			panic("cant spawn less than 0")
 		}
-		var oldMembers []*Genome
+		oldMembers := make([]*Genome, len(species.members))
 		copy(oldMembers, species.members)
 
 		species.members = make([]*Genome, 0)
