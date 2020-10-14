@@ -45,6 +45,10 @@ func (g *NodeGene) ID() int64 {
 	return g.n.ID()
 }
 
+func (g *NodeGene) Node() *net.Node {
+	return g.n
+}
+
 func (g *NodeGene) Activate(inputs []float64, weights []float64) float64 {
 	return g.n.Activate(inputs, weights)
 }
@@ -145,6 +149,10 @@ type ConnectionGene struct {
 
 func (g *ConnectionGene) ID() int64 {
 	return g.c.ID()
+}
+
+func (g *ConnectionGene) Connection() *net.Connection {
+	return g.c
 }
 
 func (g *ConnectionGene) Copy() *ConnectionGene {
