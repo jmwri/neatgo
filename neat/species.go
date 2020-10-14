@@ -146,7 +146,7 @@ func (ss *SpeciesSet) Speciate(cfg *Config, population map[int64]*Genome, genera
 	compatThreshold := cfg.CompatibilityThreshold
 
 	unspeciated := make([]int64, 0)
-	for speciesID := range ss.species {
+	for speciesID := range population {
 		unspeciated = append(unspeciated, speciesID)
 	}
 
