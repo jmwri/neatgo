@@ -2,8 +2,8 @@ package neat
 
 import (
 	"fmt"
+	"github.com/jmwri/neatgo/net"
 	"math"
-	"neatgo/net"
 )
 
 func NewGenome(n net.NeuralNetwork) *Genome {

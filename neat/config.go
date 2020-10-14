@@ -1,15 +1,15 @@
 package neat
 
 import (
-	"neatgo/activation"
-	"neatgo/aggregation"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
 )
 
 type Config struct {
 	// The NEAT section specifies parameters particular to the generic NEAT algorithm or the experiment itself. This section is always required, and is handled by the Config class itself.
 
 	// The function used to compute the termination criterion from the set of genome fitnesses. Allowable values are: min, max, and mean
-	FitnessCriterion string
+	FitnessCriterion aggregation.Fn
 	// When the fitness computed by fitness_criterion meets or exceeds this threshold, the evolution process will terminate, with a call to any registered reporting class’ found_solution method.
 	FitnessThreshold float64
 	// If this evaluates to True, then the fitness_criterion and fitness_threshold are ignored for termination; only valid if termination by a maximum number of generations passed to population.Population.run() is enabled, and the found_solution method is called upon generation number termination. If it evaluates to False, then fitness is used to determine termination. This defaults to “False”.

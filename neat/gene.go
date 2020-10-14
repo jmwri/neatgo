@@ -2,11 +2,11 @@ package neat
 
 import (
 	"fmt"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
+	"github.com/jmwri/neatgo/net"
+	"github.com/jmwri/neatgo/util"
 	"math"
-	"neatgo/activation"
-	"neatgo/aggregation"
-	"neatgo/net"
-	"neatgo/util"
 )
 
 func NewNodeGene(n *net.Node) *NodeGene {

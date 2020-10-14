@@ -1,9 +1,9 @@
 package net_test
 
 import (
-	"neatgo/activation"
-	"neatgo/aggregation"
-	"neatgo/net"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
+	"github.com/jmwri/neatgo/net"
 	"reflect"
 	"testing"
 )

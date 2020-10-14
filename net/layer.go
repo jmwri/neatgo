@@ -1,8 +1,8 @@
 package net
 
 import (
-	"neatgo/activation"
-	"neatgo/aggregation"
+	"github.com/jmwri/neatgo/activation"
+	"github.com/jmwri/neatgo/aggregation"
 )
 
 func NewLayerDefinition(numNodes int, biasInitMin float64, biasInitMax float64, activationFn activation.Fn, aggregateFn aggregation.Fn) LayerDefinition {

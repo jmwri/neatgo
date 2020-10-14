@@ -1,8 +1,8 @@
 package net_test
 
 import (
-	"neatgo/net"
-	"neatgo/util"
+	"github.com/jmwri/neatgo/net"
+	"github.com/jmwri/neatgo/util"
 	"testing"
 )
 

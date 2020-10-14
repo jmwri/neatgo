@@ -1,8 +1,8 @@
 package neat
 
 import (
+	"github.com/jmwri/neatgo/aggregation"
 	"math"
-	"neatgo/aggregation"
 	"sort"
 )
 
