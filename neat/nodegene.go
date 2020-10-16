@@ -1,7 +1,6 @@
 package neat
 
 import (
-	"fmt"
 	"github.com/jmwri/neatgo/activation"
 	"github.com/jmwri/neatgo/aggregation"
 	"github.com/jmwri/neatgo/net"
@@ -17,7 +16,7 @@ func NewNodeGene(n *net.Node) *NodeGene {
 
 func NewNodeGeneFromCrossover(parentA *NodeGene, parentB *NodeGene) (*NodeGene, error) {
 	if parentA.ID() != parentB.ID() {
-		return nil, fmt.Errorf("cant crossover gene if IDs do not match")
+		return nil, ErrCrossoverNotSameParent
 	}
 
 	newBias := parentA.n.Bias()
@@ -90,29 +89,23 @@ func (g *NodeGene) mutateActivationFn(cfg *Config) {
 	if util.RandFloat(0, 1) > cfg.ActivationMutateRate {
 		return
 	}
-	// TODO: Use cfg.ActivationOptions
-	g.n.SetActivationFn(activation.RandFn())
+	g.n.SetActivationFn(activation.RandFnFromOpts(cfg.ActivationOptions))
 }
 
 func (g *NodeGene) mutateAggregationFn(cfg *Config) {
 	if util.RandFloat(0, 1) > cfg.AggregationMutateRate {
 		return
 	}
-	// TODO: Use cfg.AggregationOptions
-	g.n.SetAggregationFn(aggregation.RandFn())
+	g.n.SetAggregationFn(aggregation.RandFnFromOpts(cfg.AggregationOptions))
 }
 
 func (g *NodeGene) Distance(other *NodeGene, cfg *Config) float64 {
 	d := math.Abs(g.n.Bias()-other.n.Bias()) + math.Abs(g.n.Activation()-other.n.Activation())
-	myActivationFn := g.n.ActivationFn()
-	otherActivationFn := other.n.ActivationFn()
-	if &myActivationFn != &otherActivationFn {
+
+	if !activation.IsSameFunction(g.n.ActivationFn(), other.n.ActivationFn()) {
 		d += 1
 	}
-
-	myAggregationFn := g.n.AggregationFn()
-	otherAggregationFn := other.n.AggregationFn()
-	if &myAggregationFn != &otherAggregationFn {
+	if !aggregation.IsSameFunction(g.n.AggregationFn(), other.n.AggregationFn()) {
 		d += 1
 	}
 
