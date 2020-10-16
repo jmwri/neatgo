@@ -151,9 +151,12 @@ func (ss *SpeciesSet) Speciate(cfg *Config, population map[int64]*Genome, genera
 	}
 
 	distances := NewGenomeDistanceCache(cfg)
+	// SpeciesID > GenomeID
 	newRepresentatives := make(map[int64]int64)
+	// SpeciesID > []GenomeID
 	newMembers := make(map[int64][]int64)
 
+	// Find the best representatives for each existing species
 	for speciesID, species := range ss.species {
 		candidates := make([]SpeciesCandidateGenome, 0)
 		for _, genomeID := range unspeciated {
@@ -177,6 +180,7 @@ func (ss *SpeciesSet) Speciate(cfg *Config, population map[int64]*Genome, genera
 		unspeciated = util.RemoveInt64FromSlice(unspeciated, newRepresentativeID)
 	}
 
+	// Partition the population into species based on genetic similarity
 	unspeciatedRemaining := len(unspeciated)
 	for unspeciatedRemaining > 0 {
 		genomeID := unspeciated[0]
@@ -184,9 +188,13 @@ func (ss *SpeciesSet) Speciate(cfg *Config, population map[int64]*Genome, genera
 		unspeciated = unspeciated[1:]
 		unspeciatedRemaining--
 
+		// Find the species with the most similar representative.
 		candidates := make([]SpeciesCandidateSpeciesID, 0)
 		for speciesID, representativeID := range newRepresentatives {
-			representative := population[representativeID]
+			representative, ok := population[representativeID]
+			if !ok {
+				panic("couldnt find representative in population")
+			}
 			d := distances.Distance(representative, genome)
 			if d < compatThreshold {
 				candidates = append(candidates, SpeciesCandidateSpeciesID{
@@ -211,6 +219,7 @@ func (ss *SpeciesSet) Speciate(cfg *Config, population map[int64]*Genome, genera
 		}
 	}
 
+	// Update species collection based on new speciation.
 	ss.genomeIDToSpeciesID = make(map[int64]int64)
 	for speciesID, representativeID := range newRepresentatives {
 		species, ok := ss.species[speciesID]
