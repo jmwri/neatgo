@@ -14,8 +14,8 @@ func NewConfig(popSize int, numInputs int, numOutputs int) Config {
 		ResetOnExtinction:                false,
 		SpeciesFitnessFn:                 aggregation.Mean,
 		MaxStagnation:                    15,
-		SpeciesElitism:                   0,
-		Elitism:                          0,
+		SpeciesElitism:                   2,
+		Elitism:                          2,
 		SurvivalThreshold:                0.2,
 		MinSpeciesSize:                   2,
 		FitnessMinDivisor:                1,
@@ -30,15 +30,15 @@ func NewConfig(popSize int, numInputs int, numOutputs int) Config {
 		BiasMaxValue:                     1,
 		BiasMinValue:                     0,
 		BiasMutatePower:                  .02,
-		BiasMutateRate:                   .2,
+		BiasMutateRate:                   .7,
 		BiasReplaceRate:                  .1,
-		CompatibilityThreshold:           .2,
-		CompatibilityDisjointCoefficient: .2,
-		CompatibilityWeightCoefficient:   .2,
-		ConnAddProb:                      .1,
-		ConnDeleteProb:                   .05,
+		CompatibilityThreshold:           3,
+		CompatibilityDisjointCoefficient: 1,
+		CompatibilityWeightCoefficient:   .5,
+		ConnAddProb:                      .5,
+		ConnDeleteProb:                   .5,
 		EnabledDefault:                   true,
-		EnabledMutateRate:                .1,
+		EnabledMutateRate:                .01,
 		EnabledRateToFalseAdd:            .1,
 		EnabledRateToTrueAdd:             .25,
 		NodeAddProb:                      .1,
@@ -148,22 +148,6 @@ type Config struct {
 	NumInputs int
 	// The number of output nodes, to which the network delivers outputs.
 	NumOutputs int
-	// The mean of the normal/gaussian distribution, if it is used to select response multiplier attribute values for new nodes.
-	//ResponseInitMean float64
-	// The standard deviation of the normal/gaussian distribution, if it is used to select response multipliers for new nodes.
-	//ResponseInitStdev float64
-	// If set to gaussian or normal, then the initialization is to a normal/gaussian distribution. If set to uniform, a uniform distribution from max(response_min_value,(response_init_mean−(response_init_stdev∗2))) to min(response_max_value,(response_init_mean+(response_init_stdev∗2))). (Note that the standard deviation of a uniform distribution is not range/0.25, as implied by this, but the range divided by a bit over 0.288 (the square root of 12); however, this approximation makes setting the range much easier.) This defaults to “gaussian”.
-	//ResponseInitType string
-	// The maximum allowed response multiplier. Response multipliers above this value will be clamped to this value.
-	//ResponseMaxValue float64
-	// The minimum allowed response multiplier. Response multipliers below this value will be clamped to this value.
-	//ResponseMinValue float64
-	// The standard deviation of the zero-centered normal/gaussian distribution from which a response multiplier mutation is drawn.
-	//ResponseMutatePower float64
-	// The probability that mutation will change the response multiplier of a node by adding a random value.
-	//ResponseMutateRate float64
-	// The probability that mutation will replace the response multiplier of a node with a newly chosen random value (as if it were a new node).
-	//ResponseReplaceRate float64
 	// If this evaluates to True, only one structural mutation (the addition or removal of a node or connection) will be allowed per genome per generation. (If the probabilities for conn_add_prob, conn_delete_prob, node_add_prob, and node_delete_prob add up to over 1, the chances of each are proportional to the appropriate configuration value.) This defaults to “False”.
 	SingleStructuralMutation bool
 	// If this evaluates to True, then an attempt to add a node to a genome lacking connections will result in adding a connection instead; furthermore, if an attempt to add a connection tries to add a connection that already exists, that connection will be enabled. If this is set to default, then it acts as if it had the same value as single_structural_mutation (above). This defaults to “default”.
