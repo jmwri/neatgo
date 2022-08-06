@@ -85,7 +85,11 @@ func Activate(nodes []*Node, connections []*Connection, input []float64) ([]floa
 			// Sum the inputs to the node, add the bias, and run the activation function.
 			state := activation.node.Bias
 			for _, inputCh := range activation.in {
-				state += <-inputCh
+				inputValue, ok := <-inputCh
+				if !ok {
+					continue
+				}
+				state += inputValue
 			}
 			activated := activation.node.ActivationFn(state)
 			// Send the activated value to all connected nodes
@@ -102,10 +106,12 @@ func Activate(nodes []*Node, connections []*Connection, input []float64) ([]floa
 		go func(activation connectionActivation) {
 			defer wg.Done()
 			// Multiply the inbound value by the connections weight
-			inValue := <-activation.in
-			activated := inValue * activation.connection.Weight
-			// Send the activated value to the connected node
-			activation.out <- activated
+			inValue, ok := <-activation.in
+			if ok && activation.connection.Enabled {
+				activated := inValue * activation.connection.Weight
+				// Send the activated value to the connected node
+				activation.out <- activated
+			}
 			close(activation.out)
 		}(activation)
 	}

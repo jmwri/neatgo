@@ -38,22 +38,25 @@ func TestActivate(t *testing.T) {
 	}
 	connections := []*network.Connection{
 		{
-			ID:     6,
-			From:   1,
-			To:     3,
-			Weight: .8,
+			ID:      6,
+			From:    1,
+			To:      3,
+			Weight:  .8,
+			Enabled: true,
 		},
 		{
-			ID:     7,
-			From:   2,
-			To:     3,
-			Weight: .5,
+			ID:      7,
+			From:    2,
+			To:      3,
+			Weight:  .5,
+			Enabled: true,
 		},
 		{
-			ID:     8,
-			From:   3,
-			To:     4,
-			Weight: 1,
+			ID:      8,
+			From:    3,
+			To:      4,
+			Weight:  1,
+			Enabled: true,
 		},
 	}
 	/**
