@@ -7,10 +7,10 @@ import (
 
 // Activate the network defined by nodes and connections with the given input.
 // The calculations in each node and connection are executed in their own goroutines.
-func Activate(nodes []*Node, connections []*Connection, input []float64) ([]float64, error) {
+func Activate(nodes []Node, connections []Connection, input []float64) ([]float64, error) {
 	// nodeActivation contains channels for passing input/output from a node
 	type nodeActivation struct {
-		node *Node
+		node Node
 		in   []chan float64
 		out  []chan float64
 	}
@@ -20,13 +20,14 @@ func Activate(nodes []*Node, connections []*Connection, input []float64) ([]floa
 
 	// connectionActivation contains channels for passing input/output from a connection
 	type connectionActivation struct {
-		connection *Connection
+		connection Connection
 		in         chan float64
 		out        chan float64
 	}
 	connectionActivations := make([]connectionActivation, len(connections))
 
 	inputChans := make([]chan float64, 0)
+	biasChans := make([]chan float64, 0)
 	outputChans := make([]chan float64, 0)
 
 	// Create a nodeActivation for each node
@@ -41,6 +42,12 @@ func Activate(nodes []*Node, connections []*Connection, input []float64) ([]floa
 			inputChan := make(chan float64)
 			inputChans = append(inputChans, inputChan)
 			nodeActivations[i].in = append(nodeActivations[i].in, inputChan)
+		}
+		// If the node is bias, then create a bias channel.
+		if node.Type == Bias {
+			biasChan := make(chan float64)
+			biasChans = append(biasChans, biasChan)
+			nodeActivations[i].in = append(nodeActivations[i].in, biasChan)
 		}
 		// If the node is output, then create an output channel.
 		if node.Type == Output {
@@ -125,6 +132,17 @@ func Activate(nodes []*Node, connections []*Connection, input []float64) ([]floa
 			inputChan <- value
 			close(inputChan)
 		}(inputChans[i], value)
+	}
+
+	wg.Add(len(biasChans))
+	// Start a goroutine for passing input into the network
+	for _, biasChan := range biasChans {
+		go func(biasChan chan float64) {
+			defer wg.Done()
+			// Send each input value to the input node
+			biasChan <- 1.0
+			close(biasChan)
+		}(biasChan)
 	}
 
 	wg.Add(len(outputChans))

@@ -2,6 +2,13 @@ package network
 
 import "sync"
 
+func NewIDProvider() *IDProvider {
+	return &IDProvider{
+		mu:      sync.Mutex{},
+		current: 0,
+	}
+}
+
 type IDProvider struct {
 	mu      sync.Mutex
 	current int
