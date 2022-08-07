@@ -1,4 +1,4 @@
-package neat
+package util
 
 import (
 	"math"
@@ -9,6 +9,10 @@ type RandFloatProvider func(min, max float64) float64
 
 func FloatBetween(min, max float64) float64 {
 	return min + rand.Float64()*(max-min)
+}
+
+func IntBetween(min, max int) int {
+	return min + rand.Intn(max-min)
 }
 
 func RandomGaussian() float64 {

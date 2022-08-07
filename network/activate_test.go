@@ -7,39 +7,36 @@ import (
 )
 
 func TestActivate(t *testing.T) {
-	noActivation := func(x float64) float64 {
-		return x
-	}
 	nodes := []network.Node{
 		{
 			ID:           1,
 			Type:         network.Input,
 			Bias:         0,
-			ActivationFn: noActivation,
+			ActivationFn: network.NoActivationFn,
 		},
 		{
 			ID:           2,
 			Type:         network.Input,
 			Bias:         0,
-			ActivationFn: noActivation,
+			ActivationFn: network.NoActivationFn,
 		},
 		{
 			ID:           3,
 			Type:         network.Bias,
 			Bias:         0,
-			ActivationFn: noActivation,
+			ActivationFn: network.NoActivationFn,
 		},
 		{
 			ID:           4,
 			Type:         network.Hidden,
 			Bias:         0,
-			ActivationFn: noActivation,
+			ActivationFn: network.NoActivationFn,
 		},
 		{
 			ID:           5,
 			Type:         network.Output,
 			Bias:         1,
-			ActivationFn: noActivation,
+			ActivationFn: network.NoActivationFn,
 		},
 	}
 	connections := []network.Connection{

@@ -3,13 +3,14 @@ package neat
 import (
 	"fmt"
 	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/util"
 )
 
 type GenomeConfig struct {
 	Layers                    []int
 	BiasNodes                 int
 	IDProvider                IDProvider
-	RandFloatProvider         RandFloatProvider
+	RandFloatProvider         util.RandFloatProvider
 	MinBias                   float64
 	MaxBias                   float64
 	MinWeight                 float64
@@ -25,7 +26,7 @@ func DefaultGenomeConfig(layers ...int) GenomeConfig {
 		Layers:                    layers,
 		BiasNodes:                 1,
 		IDProvider:                NewSequentialIDProvider(),
-		RandFloatProvider:         FloatBetween,
+		RandFloatProvider:         util.FloatBetween,
 		MinBias:                   -1,
 		MaxBias:                   1,
 		MinWeight:                 -1,
@@ -38,8 +39,29 @@ func DefaultGenomeConfig(layers ...int) GenomeConfig {
 }
 
 type Genome struct {
-	nodes       []network.Node
+	layers      [][]network.Node
 	connections []network.Connection
+}
+
+func (g Genome) NumLayers() int {
+	return len(g.layers)
+}
+func (g Genome) NumNodes() int {
+	nodes := 0
+	for _, layer := range g.layers {
+		nodes += len(layer)
+	}
+	return nodes
+}
+func (g Genome) NumConnections() int {
+	return len(g.connections)
+}
+
+func NewGenome(layers [][]network.Node, connections []network.Connection) Genome {
+	return Genome{
+		layers:      layers,
+		connections: connections,
+	}
 }
 
 func GenerateGenome(cfg GenomeConfig) (Genome, error) {
@@ -47,7 +69,7 @@ func GenerateGenome(cfg GenomeConfig) (Genome, error) {
 	if len(cfg.Layers) < 2 {
 		return genome, fmt.Errorf("must have at least an input and output layer")
 	}
-	nodes := make([][]network.Node, len(cfg.Layers))
+	layers := make([][]network.Node, len(cfg.Layers))
 	connections := make([]network.Connection, 0)
 	for i, numNodes := range cfg.Layers {
 		nodeType := network.Hidden
@@ -60,17 +82,17 @@ func GenerateGenome(cfg GenomeConfig) (Genome, error) {
 
 		for nodeNum := 0; nodeNum < numNodes; nodeNum++ {
 			bias := cfg.RandFloatProvider(cfg.MinBias, cfg.MaxBias)
-			activationFn := func(x float64) float64 { return x }
+			activationFn := network.RandomActivationFunction()
 			node := network.NewNode(
 				cfg.IDProvider.Next(),
 				nodeType,
 				bias,
 				activationFn,
 			)
-			nodes[i] = append(nodes[i], node)
+			layers[i] = append(layers[i], node)
 			if i > 0 {
-				nodesInPreviousLayer := nodes[i-1]
-				for _, fromNode := range nodesInPreviousLayer {
+				previousLayer := layers[i-1]
+				for _, fromNode := range previousLayer {
 					weight := cfg.RandFloatProvider(cfg.MinWeight, cfg.MaxWeight)
 					connection := network.NewConnection(
 						cfg.IDProvider.Next(),
@@ -83,28 +105,32 @@ func GenerateGenome(cfg GenomeConfig) (Genome, error) {
 				}
 			}
 		}
-	}
 
-	allNodes := make([]network.Node, 0)
-	for _, layerNodes := range nodes {
-		for _, node := range layerNodes {
-			allNodes = append(allNodes, node)
+		if i > 0 {
+			continue
+		}
+		for nodeNum := 0; nodeNum < cfg.BiasNodes; nodeNum++ {
+			node := network.NewNode(cfg.IDProvider.Next(), network.Bias, 0, network.NoActivationFn)
+			layers[i] = append(layers[i], node)
 		}
 	}
 
-	genome.nodes = allNodes
+	genome.layers = layers
 	genome.connections = connections
 	return genome, nil
 }
 
 func CopyGenome(genome Genome) Genome {
 	cp := Genome{
-		nodes:       make([]network.Node, len(genome.nodes)),
+		layers:      make([][]network.Node, len(genome.layers)),
 		connections: make([]network.Connection, len(genome.connections)),
 	}
 
-	for i, node := range genome.nodes {
-		cp.nodes[i] = node
+	for i, layer := range genome.layers {
+		cp.layers[i] = make([]network.Node, len(layer))
+		for j, node := range layer {
+			cp.layers[i][j] = node
+		}
 	}
 	for i, connection := range genome.connections {
 		cp.connections[i] = connection

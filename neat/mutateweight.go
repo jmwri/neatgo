@@ -1,5 +1,7 @@
 package neat
 
+import "github.com/jmwri/neatgo/util"
+
 func MutateConnectionWeights(cfg GenomeConfig, genome Genome) Genome {
 	genome = CopyGenome(genome)
 	seed := cfg.RandFloatProvider(0, 1)
@@ -16,7 +18,7 @@ func MutateConnectionWeights(cfg GenomeConfig, genome Genome) Genome {
 				newWeight = cfg.RandFloatProvider(cfg.MinWeight, cfg.MaxWeight)
 			}
 		} else {
-			newWeight += RandomGaussian() / 50
+			newWeight += util.RandomGaussian() / 50
 			if newWeight > cfg.MaxWeight {
 				newWeight = cfg.MaxWeight
 			} else if newWeight < cfg.MinWeight {

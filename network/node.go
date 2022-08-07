@@ -18,7 +18,6 @@ func NewNode(id int, nodeType NodeType, bias float64, activationFn ActivationFun
 	}
 }
 
-type ActivationFunction func(state float64) float64
 type Node struct {
 	ID           int
 	Type         NodeType
