@@ -2,19 +2,23 @@ package neat
 
 import "sync"
 
-func NewIDProvider() *IDProvider {
-	return &IDProvider{
+type IDProvider interface {
+	Next() int
+}
+
+func NewSequentialIDProvider() *SequentialIDProvider {
+	return &SequentialIDProvider{
 		mu:      sync.Mutex{},
 		current: 0,
 	}
 }
 
-type IDProvider struct {
+type SequentialIDProvider struct {
 	mu      sync.Mutex
 	current int
 }
 
-func (p *IDProvider) Next() int {
+func (p *SequentialIDProvider) Next() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.current += 1
