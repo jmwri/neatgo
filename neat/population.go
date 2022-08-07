@@ -112,32 +112,8 @@ func RunGeneration(pop Population) Population {
 	pop.Generation++
 	wg := sync.WaitGroup{}
 	wg.Add(len(pop.Genomes))
-	for i, genome := range pop.Genomes {
-		go func(genome Genome, i int) {
-			var state BackendGenomeState = pop.GenomeStates[i]
-			defer wg.Done()
-			defer close(state.SendOutput())
-			defer close(state.SendError())
-			for {
-				input, ok := <-state.GetInput()
-				if !ok {
-					// If input is closed, then game has finished.
-					fitness, ok := <-state.GetFitness()
-					if !ok {
-						state.SendError() <- fmt.Errorf("failed to receive fitness")
-						return
-					}
-					pop.GenomeFitness[i] = fitness
-					return
-				}
-				output, err := network.Activate(genome.layers.Nodes(), genome.connections, input)
-				if err != nil {
-					state.SendError() <- err
-					continue
-				}
-				state.SendOutput() <- output
-			}
-		}(genome, i)
+	for i := range pop.Genomes {
+		go runGenome(wg, pop, i)
 	}
 
 	// Wait for all genomes in population to finish.
@@ -145,6 +121,33 @@ func RunGeneration(pop Population) Population {
 
 	// Build fresh genome states for next generation.
 	return buildGenomeStates(pop)
+}
+
+func runGenome(wg sync.WaitGroup, pop Population, i int) {
+	genome := pop.Genomes[i]
+	var state BackendGenomeState = pop.GenomeStates[i]
+	defer wg.Done()
+	defer close(state.SendOutput())
+	defer close(state.SendError())
+	for {
+		input, ok := <-state.GetInput()
+		if !ok {
+			// If input is closed, then game has finished.
+			fitness, ok := <-state.GetFitness()
+			if !ok {
+				state.SendError() <- fmt.Errorf("failed to receive fitness")
+				return
+			}
+			pop.GenomeFitness[i] = fitness
+			return
+		}
+		output, err := network.Activate(genome.layers.Nodes(), genome.connections, input)
+		if err != nil {
+			state.SendError() <- err
+			continue
+		}
+		state.SendOutput() <- output
+	}
 }
 
 func buildGenomeStates(pop Population) Population {
