@@ -6,7 +6,7 @@ import (
 	"math/rand"
 )
 
-func MutateAddNode(cfg GenomeConfig, genome Genome) Genome {
+func MutateAddNode(cfg Config, genome Genome) Genome {
 	genome = CopyGenome(genome)
 	seed := cfg.RandFloatProvider(0, 1)
 	if seed > cfg.AddNodeMutationRate {

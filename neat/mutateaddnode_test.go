@@ -8,7 +8,7 @@ import (
 )
 
 func TestMutateAddNode_NoChange(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.AddNodeMutationRate = 0
 	genome, err := neat.GenerateGenome(cfg)
 	assert.NoError(t, err, "unexpected error when generating genome")
@@ -19,7 +19,7 @@ func TestMutateAddNode_NoChange(t *testing.T) {
 }
 
 func TestMutateAddNode_NodeAdded(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1, 1)
+	cfg := neat.DefaultConfig(1, 1, 1)
 	cfg.AddNodeMutationRate = 1
 
 	layers := [][]network.Node{

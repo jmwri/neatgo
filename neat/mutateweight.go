@@ -2,7 +2,7 @@ package neat
 
 import "github.com/jmwri/neatgo/util"
 
-func MutateConnectionWeights(cfg GenomeConfig, genome Genome) Genome {
+func MutateConnectionWeights(cfg Config, genome Genome) Genome {
 	genome = CopyGenome(genome)
 	seed := cfg.RandFloatProvider(0, 1)
 	if seed > cfg.WeightMutationRate {

@@ -3,43 +3,20 @@ package neat
 import (
 	"fmt"
 	"github.com/jmwri/neatgo/network"
-	"github.com/jmwri/neatgo/util"
 )
 
-type GenomeConfig struct {
-	Layers                    []int
-	BiasNodes                 int
-	IDProvider                IDProvider
-	RandFloatProvider         util.RandFloatProvider
-	MinBias                   float64
-	MaxBias                   float64
-	MinWeight                 float64
-	MaxWeight                 float64
-	WeightMutationRate        float64
-	WeightFullMutationRate    float64
-	AddConnectionMutationRate float64
-	AddNodeMutationRate       float64
-}
+type Layers [][]network.Node
 
-func DefaultGenomeConfig(layers ...int) GenomeConfig {
-	return GenomeConfig{
-		Layers:                    layers,
-		BiasNodes:                 1,
-		IDProvider:                NewSequentialIDProvider(),
-		RandFloatProvider:         util.FloatBetween,
-		MinBias:                   -1,
-		MaxBias:                   1,
-		MinWeight:                 -1,
-		MaxWeight:                 1,
-		WeightMutationRate:        .8,
-		WeightFullMutationRate:    .1,
-		AddConnectionMutationRate: .05,
-		AddNodeMutationRate:       .01,
+func (l Layers) Nodes() []network.Node {
+	nodes := make([]network.Node, 0)
+	for _, layer := range l {
+		nodes = append(nodes, layer...)
 	}
+	return nodes
 }
 
 type Genome struct {
-	layers      [][]network.Node
+	layers      Layers
 	connections []network.Connection
 }
 
@@ -64,7 +41,7 @@ func NewGenome(layers [][]network.Node, connections []network.Connection) Genome
 	}
 }
 
-func GenerateGenome(cfg GenomeConfig) (Genome, error) {
+func GenerateGenome(cfg Config) (Genome, error) {
 	genome := Genome{}
 	if len(cfg.Layers) < 2 {
 		return genome, fmt.Errorf("must have at least an input and output layer")
@@ -138,7 +115,7 @@ func CopyGenome(genome Genome) Genome {
 	return cp
 }
 
-func MutateGenome(cfg GenomeConfig, genome Genome) Genome {
+func MutateGenome(cfg Config, genome Genome) Genome {
 	genome = MutateConnectionWeights(cfg, genome)
 	genome = MutateAddConnection(cfg, genome)
 	genome = MutateAddNode(cfg, genome)

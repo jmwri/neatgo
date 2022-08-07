@@ -8,7 +8,7 @@ import (
 )
 
 func TestMutateConnectionWeights_NoChange(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.BiasNodes = 0
 	cfg.WeightMutationRate = 0
 	genome, err := neat.GenerateGenome(cfg)
@@ -18,7 +18,7 @@ func TestMutateConnectionWeights_NoChange(t *testing.T) {
 }
 
 func TestMutateConnectionWeights_FullMutation(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.BiasNodes = 0
 	cfg.WeightMutationRate = 1
 	cfg.WeightFullMutationRate = 1
@@ -29,7 +29,7 @@ func TestMutateConnectionWeights_FullMutation(t *testing.T) {
 }
 
 func TestMutateConnectionWeights_MinimalMutation(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.BiasNodes = 0
 	cfg.WeightMutationRate = 1
 	cfg.WeightFullMutationRate = 0

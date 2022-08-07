@@ -8,7 +8,7 @@ import (
 )
 
 func TestMutateAddConnection_NoChange(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.AddConnectionMutationRate = 0
 	genome, err := neat.GenerateGenome(cfg)
 	assert.NoError(t, err, "unexpected error when generating genome")
@@ -19,7 +19,7 @@ func TestMutateAddConnection_NoChange(t *testing.T) {
 }
 
 func TestMutateAddConnection_NoChangeWhenFullyConnected(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 1)
+	cfg := neat.DefaultConfig(1, 1)
 	cfg.AddConnectionMutationRate = 1
 	genome, err := neat.GenerateGenome(cfg)
 	assert.NoError(t, err, "unexpected error when generating genome")
@@ -30,7 +30,7 @@ func TestMutateAddConnection_NoChangeWhenFullyConnected(t *testing.T) {
 }
 
 func TestMutateAddConnection_FullChange(t *testing.T) {
-	cfg := neat.DefaultGenomeConfig(1, 2, 2)
+	cfg := neat.DefaultConfig(1, 2, 2)
 	cfg.AddConnectionMutationRate = 1
 
 	layers := [][]network.Node{

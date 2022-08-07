@@ -5,7 +5,7 @@ import (
 	"github.com/jmwri/neatgo/util"
 )
 
-func MutateAddConnection(cfg GenomeConfig, genome Genome) Genome {
+func MutateAddConnection(cfg Config, genome Genome) Genome {
 	genome = CopyGenome(genome)
 	seed := cfg.RandFloatProvider(0, 1)
 	if seed > cfg.AddConnectionMutationRate {
