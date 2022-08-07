@@ -113,17 +113,26 @@ func RunGeneration(pop Population) Population {
 	wg := sync.WaitGroup{}
 	wg.Add(len(pop.Genomes))
 	for i := range pop.Genomes {
-		go runGenome(wg, pop, i)
+		go runGenome(&wg, pop, i)
 	}
 
 	// Wait for all genomes in population to finish.
 	wg.Wait()
 
+	// TODO: Speciate - group genomes into species
+	// TODO: Rank species - sort species by their average fitness
+	// TODO: Cull species - remove the bottom 50% of each species
+	// TODO: Kill stale species - remove species that haven't improved in the past N generations
+	// TODO: Kill unreproducable species - remove species that won't be able to reproduce (based on species target size)
+
+	// TODO: Mate genomes to fill the rest of the population
+	// Species size should be calculated by their performance against all others
+
 	// Build fresh genome states for next generation.
 	return buildGenomeStates(pop)
 }
 
-func runGenome(wg sync.WaitGroup, pop Population, i int) {
+func runGenome(wg *sync.WaitGroup, pop Population, i int) {
 	genome := pop.Genomes[i]
 	var state BackendGenomeState = pop.GenomeStates[i]
 	defer wg.Done()
