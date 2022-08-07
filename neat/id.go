@@ -4,6 +4,7 @@ import "sync"
 
 type IDProvider interface {
 	Next() int
+	SetCurrent(n int)
 }
 
 func NewSequentialIDProvider() *SequentialIDProvider {
@@ -23,4 +24,10 @@ func (p *SequentialIDProvider) Next() int {
 	defer p.mu.Unlock()
 	p.current += 1
 	return p.current
+}
+
+func (p *SequentialIDProvider) SetCurrent(n int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.current = n
 }

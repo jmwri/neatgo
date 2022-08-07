@@ -101,6 +101,7 @@ func TestMutateAddConnection_FullChange(t *testing.T) {
 			Enabled: true,
 		},
 	}
+	cfg.IDProvider.SetCurrent(9)
 
 	genome := neat.NewGenome(layers, connections)
 	// added1/2 should add connection between nodes 2>5 and 3>4. added3 should have no effect as it is fully connected.

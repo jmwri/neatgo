@@ -137,3 +137,37 @@ func CopyGenome(genome Genome) Genome {
 	}
 	return cp
 }
+
+func getNodeFromLayers(layers [][]network.Node, nodeID int) network.Node {
+	for _, layer := range layers {
+		for _, node := range layer {
+			if node.ID == nodeID {
+				return node
+			}
+		}
+	}
+	return network.Node{}
+}
+
+func getBiasNodes(layers [][]network.Node) []network.Node {
+	nodes := make([]network.Node, 0)
+	for _, layer := range layers {
+		for _, node := range layer {
+			if node.Type == network.Bias {
+				nodes = append(nodes, node)
+			}
+		}
+	}
+	return nodes
+}
+
+func getNodeLayer(layers [][]network.Node, nodeID int) int {
+	for i, layer := range layers {
+		for _, node := range layer {
+			if node.ID == nodeID {
+				return i
+			}
+		}
+	}
+	return -1
+}
