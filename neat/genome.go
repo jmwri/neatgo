@@ -138,6 +138,13 @@ func CopyGenome(genome Genome) Genome {
 	return cp
 }
 
+func MutateGenome(cfg GenomeConfig, genome Genome) Genome {
+	genome = MutateConnectionWeights(cfg, genome)
+	genome = MutateAddConnection(cfg, genome)
+	genome = MutateAddNode(cfg, genome)
+	return genome
+}
+
 func getNodeFromLayers(layers [][]network.Node, nodeID int) network.Node {
 	for _, layer := range layers {
 		for _, node := range layer {
