@@ -14,6 +14,7 @@ func GeneratePopulation(cfg Config) (Population, error) {
 		Genomes:       genomes,
 		GenomeStates:  genomeStates,
 		GenomeFitness: make([]float64, cfg.PopulationSize),
+		Species:       make([]Species, 0),
 		Generation:    0,
 	}
 	var err error
@@ -32,6 +33,7 @@ type Population struct {
 	// GenomeStates contains a GenomeState and should be used for the Genome as the same index.
 	GenomeStates  []GenomeState
 	GenomeFitness []float64
+	Species       []Species
 	Generation    int
 }
 
@@ -119,7 +121,7 @@ func RunGeneration(pop Population) Population {
 	// Wait for all genomes in population to finish.
 	wg.Wait()
 
-	// TODO: Speciate - group genomes into species
+	pop = Speciate(pop)
 	// TODO: Rank species - sort species by their average fitness
 	// TODO: Cull species - remove the bottom 50% of each species
 	// TODO: Kill stale species - remove species that haven't improved in the past N generations

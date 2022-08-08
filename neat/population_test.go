@@ -43,7 +43,7 @@ func TestRunGeneration(t *testing.T) {
 			}
 		}(state)
 	}
-	RunGeneration(pop)
+	pop = RunGeneration(pop)
 	wg.Wait()
 	fmt.Println("all done")
 }
