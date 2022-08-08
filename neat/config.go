@@ -19,6 +19,7 @@ type Config struct {
 	SpeciesCompatExcessCoeff     float64
 	SpeciesCompatWeightDiffCoeff float64
 	SpeciesCompatThreshold       float64
+	SpeciesStalenessThreshold    int
 }
 
 func DefaultConfig(layers ...int) Config {
@@ -39,5 +40,6 @@ func DefaultConfig(layers ...int) Config {
 		SpeciesCompatExcessCoeff:     1,
 		SpeciesCompatWeightDiffCoeff: 0.5,
 		SpeciesCompatThreshold:       3,
+		SpeciesStalenessThreshold:    15,
 	}
 }

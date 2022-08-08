@@ -103,6 +103,19 @@ func FitnessSharing(pop Population) Population {
 	return pop
 }
 
+func KillStaleSpecies(pop Population) Population {
+	keepSpecies := make([]Species, 0)
+	for _, species := range pop.Species {
+		if species.Staleness < pop.Cfg.SpeciesStalenessThreshold {
+			keepSpecies = append(keepSpecies, species)
+		}
+	}
+
+	pop.Species = keepSpecies
+
+	return pop
+}
+
 func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool {
 	excessAndDisjoint := countExcessAndDisjointGenes(genome, species.Representative)
 	averageWeightDiff := calculateAverageConnectionWeightDiff(genome, species.Representative)
