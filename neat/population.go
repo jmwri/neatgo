@@ -123,6 +123,8 @@ func RunGeneration(pop Population) Population {
 
 	pop = Speciate(pop)
 	pop = RankSpecies(pop)
+	pop = CullSpecies(pop)
+	pop = FitnessSharing(pop)
 	// TODO: Rank species - sort species by their average fitness
 	// TODO: Cull species - remove the bottom 50% of each species
 	// TODO: Kill stale species - remove species that haven't improved in the past N generations

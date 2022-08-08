@@ -74,6 +74,29 @@ func RankSpecies(pop Population) Population {
 	return pop
 }
 
+func CullSpecies(pop Population) Population {
+	for i, species := range pop.Species {
+		if len(species.Genomes) <= 2 {
+			continue
+		}
+		removeFromIndex := len(species.Genomes) / 2
+		pop.Species[i].Genomes = pop.Species[i].Genomes[removeFromIndex:]
+	}
+	return pop
+}
+
+func FitnessSharing(pop Population) Population {
+	for i, species := range pop.Species {
+		avgFitness := 0.0
+		for _, genomeIndex := range species.Genomes {
+			pop.GenomeFitness[genomeIndex] = pop.GenomeFitness[genomeIndex] / float64(len(species.Genomes))
+			avgFitness += pop.GenomeFitness[genomeIndex]
+		}
+		pop.Species[i].AvgFitness = avgFitness / float64(len(species.Genomes))
+	}
+	return pop
+}
+
 func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool {
 	excessAndDisjoint := countExcessAndDisjointGenes(genome, species.Representative)
 	averageWeightDiff := calculateAverageConnectionWeightDiff(genome, species.Representative)

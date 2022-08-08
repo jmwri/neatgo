@@ -9,7 +9,6 @@ import (
 
 func TestRunGeneration(t *testing.T) {
 	cfg := DefaultConfig(1, 5)
-	cfg.PopulationSize = 5
 	pop, err := GeneratePopulation(cfg)
 	assert.NoError(t, err)
 
