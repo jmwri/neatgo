@@ -112,6 +112,11 @@ func KillStaleSpecies(pop Population) Population {
 		}
 	}
 
+	// Always keep at least 1 species
+	if len(keepSpecies) == 0 {
+		keepSpecies = append(keepSpecies, pop.Species[0])
+	}
+
 	pop.Species = keepSpecies
 
 	return pop
@@ -121,6 +126,11 @@ func KillBadSpecies(pop Population) Population {
 	desiredOffspring := getDesiredOffspringCount(pop)
 	keepSpecies := make([]Species, 0)
 	for i, species := range pop.Species {
+		if i == 0 {
+			// Always leave at least 1 species alive
+			keepSpecies = append(keepSpecies, species)
+			continue
+		}
 		numOffspring, ok := desiredOffspring[i]
 		if !ok {
 			continue
