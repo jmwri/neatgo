@@ -43,6 +43,7 @@ func Speciate(pop Population) Population {
 		}
 	}
 	for i, species := range pop.Species {
+		oldBestFitness := species.BestFitness
 		bestFitness := 0.0
 		totalFitness := 0.0
 		for _, genome := range species.Genomes {
@@ -54,6 +55,11 @@ func Speciate(pop Population) Population {
 		}
 		pop.Species[i].AvgFitness = totalFitness / float64(len(species.Genomes))
 		pop.Species[i].BestFitness = bestFitness
+		if pop.Species[i].BestFitness == oldBestFitness {
+			pop.Species[i].Staleness++
+		} else {
+			pop.Species[i].Staleness = 0
+		}
 	}
 	return pop
 }
