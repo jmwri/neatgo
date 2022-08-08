@@ -143,7 +143,7 @@ func getDesiredOffspringCount(pop Population) map[int]int {
 
 	desiredOffspring := make(map[int]int)
 	for i, species := range pop.Species {
-		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(len(species.Genomes))))
+		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(len(pop.Genomes))))
 		desiredOffspring[i] = offspringCount
 	}
 	return desiredOffspring
