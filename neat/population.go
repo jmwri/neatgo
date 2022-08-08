@@ -127,6 +127,7 @@ func RunGeneration(pop Population) Population {
 	pop = FitnessSharing(pop)
 	pop = KillStaleSpecies(pop)
 	pop = KillBadSpecies(pop)
+	pop = Mate(pop)
 
 	// TODO: Mate genomes to fill the rest of the population
 	// Species size should be calculated by their performance against all others
@@ -171,5 +172,42 @@ func buildGenomeStates(pop Population) Population {
 			errCh:     make(chan error),
 		}
 	}
+	return pop
+}
+
+func Mate(pop Population) Population {
+	offspringCount := getDesiredOffspringCount(pop)
+	newGenomes := make([]Genome, 0)
+	newStates := make([]GenomeState, pop.Cfg.PopulationSize)
+	newFitness := make([]float64, pop.Cfg.PopulationSize)
+	newSpecies := make([]Species, 0)
+
+	for i, species := range pop.Species {
+		numOffspring, ok := offspringCount[i]
+		if !ok {
+			continue
+		}
+		// Add the best genome of each species
+		oldGenomeIndex := species.Genomes[0]
+		newGenomeIndex := len(newGenomes)
+		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
+		newFitness[newGenomeIndex] = pop.GenomeFitness[oldGenomeIndex]
+
+		speciesGenomes := []int{newGenomeIndex}
+		for j := 1; j <= numOffspring; j++ {
+			// TODO: Do crossover, add brand new genome to species
+		}
+		species.Genomes = speciesGenomes
+		newSpecies = append(newSpecies, species)
+	}
+
+	if len(newGenomes) < pop.Cfg.PopulationSize {
+		// TODO: Do crossover from best species to fill the gap
+	}
+
+	pop.Genomes = newGenomes
+	pop.GenomeFitness = newFitness
+	pop.Species = newSpecies
+	pop.GenomeStates = newStates
 	return pop
 }
