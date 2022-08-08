@@ -126,7 +126,7 @@ func RunGeneration(pop Population) Population {
 	pop = CullSpecies(pop)
 	pop = FitnessSharing(pop)
 	pop = KillStaleSpecies(pop)
-	// TODO: Kill unreproducable species - remove species that won't be able to reproduce (based on species target size)
+	pop = KillBadSpecies(pop)
 
 	// TODO: Mate genomes to fill the rest of the population
 	// Species size should be calculated by their performance against all others

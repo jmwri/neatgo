@@ -116,6 +116,39 @@ func KillStaleSpecies(pop Population) Population {
 	return pop
 }
 
+func KillBadSpecies(pop Population) Population {
+	desiredOffspring := getDesiredOffspringCount(pop)
+	keepSpecies := make([]Species, 0)
+	for i, species := range pop.Species {
+		numOffspring, ok := desiredOffspring[i]
+		if !ok {
+			continue
+		}
+		if numOffspring < 1 {
+			continue
+		}
+		keepSpecies = append(keepSpecies, species)
+	}
+
+	pop.Species = keepSpecies
+
+	return pop
+}
+
+func getDesiredOffspringCount(pop Population) map[int]int {
+	avgFitnessSum := 0.0
+	for _, species := range pop.Species {
+		avgFitnessSum += species.AvgFitness
+	}
+
+	desiredOffspring := make(map[int]int)
+	for i, species := range pop.Species {
+		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(len(species.Genomes))))
+		desiredOffspring[i] = offspringCount
+	}
+	return desiredOffspring
+}
+
 func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool {
 	excessAndDisjoint := countExcessAndDisjointGenes(genome, species.Representative)
 	averageWeightDiff := calculateAverageConnectionWeightDiff(genome, species.Representative)
