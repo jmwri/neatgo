@@ -1,6 +1,7 @@
 package neat
 
 import (
+	"github.com/jmwri/neatgo/util"
 	"math"
 	"sort"
 )
@@ -216,4 +217,39 @@ func calculateAverageConnectionWeightDiff(a, b Genome) float64 {
 		return 100
 	}
 	return totalWeightDiff / tot
+}
+
+func GetOffspring(pop Population, species Species) Genome {
+	performCrossover := util.FloatBetween(0, 1) < pop.Cfg.MateCrossoverRate
+	var baby Genome
+	if performCrossover {
+		a := getRandomSpeciesOffspring(pop, species)
+		b := getRandomSpeciesOffspring(pop, species)
+		if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
+			a, b = b, a
+		}
+		aGenome := pop.Genomes[a]
+		bGenome := pop.Genomes[b]
+		baby = Crossover(pop.Cfg, aGenome, bGenome)
+	} else {
+		randomGenome := getRandomSpeciesOffspring(pop, species)
+		baby = CopyGenome(pop.Genomes[randomGenome])
+	}
+	return MutateGenome(pop.Cfg, baby)
+}
+
+func getRandomSpeciesOffspring(pop Population, species Species) int {
+	fitnessSum := 0.0
+	for _, genomeID := range species.Genomes {
+		fitnessSum += pop.GenomeFitness[genomeID]
+	}
+	chosenFitness := util.FloatBetween(0, fitnessSum)
+	pickSum := 0.0
+	for _, genomeID := range species.Genomes {
+		pickSum += pop.GenomeFitness[genomeID]
+		if pickSum > chosenFitness {
+			return genomeID
+		}
+	}
+	return species.Genomes[0]
 }

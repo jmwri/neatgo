@@ -127,9 +127,9 @@ func RunGeneration(pop Population) Population {
 	pop = FitnessSharing(pop)
 	pop = KillStaleSpecies(pop)
 	pop = KillBadSpecies(pop)
-	pop = Mate(pop)
+	pop = Evolve(pop)
 
-	// TODO: Mate genomes to fill the rest of the population
+	// TODO: Evolve genomes to fill the rest of the population
 	// Species size should be calculated by their performance against all others
 
 	// Build fresh genome states for next generation.
@@ -175,7 +175,7 @@ func buildGenomeStates(pop Population) Population {
 	return pop
 }
 
-func Mate(pop Population) Population {
+func Evolve(pop Population) Population {
 	offspringCount := getDesiredOffspringCount(pop)
 	newGenomes := make([]Genome, 0)
 	newStates := make([]GenomeState, pop.Cfg.PopulationSize)
@@ -187,22 +187,36 @@ func Mate(pop Population) Population {
 		if !ok {
 			continue
 		}
-		// Add the best genome of each species
+		// Add the best genome of each species without mutation
 		oldGenomeIndex := species.Genomes[0]
 		newGenomeIndex := len(newGenomes)
 		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
 		newFitness[newGenomeIndex] = pop.GenomeFitness[oldGenomeIndex]
 
 		speciesGenomes := []int{newGenomeIndex}
-		for j := 1; j <= numOffspring; j++ {
-			// TODO: Do crossover, add brand new genome to species
+		// We create numOffspring-1 children here, as we've already carried over the best
+		for j := 1; j < numOffspring; j++ {
+			// Get offspring from the species
+			offspring := GetOffspring(pop, pop.Species[i])
+			newGenomeIndex = len(newGenomes)
+			newGenomes = append(newGenomes, offspring)
+			newFitness[newGenomeIndex] = 0
+			speciesGenomes = append(speciesGenomes, newGenomeIndex)
 		}
 		species.Genomes = speciesGenomes
 		newSpecies = append(newSpecies, species)
 	}
 
+	// Once processed all species, if we have some population size left over, just use the best species.
 	if len(newGenomes) < pop.Cfg.PopulationSize {
-		// TODO: Do crossover from best species to fill the gap
+		bestSpecies := pop.Species[0]
+		for len(newGenomes) < pop.Cfg.PopulationSize {
+			offspring := GetOffspring(pop, bestSpecies)
+			newGenomeIndex := len(newGenomes)
+			newGenomes = append(newGenomes, offspring)
+			newFitness[newGenomeIndex] = 0
+			newSpecies[0].Genomes = append(newSpecies[0].Genomes, newGenomeIndex)
+		}
 	}
 
 	pop.Genomes = newGenomes

@@ -3,6 +3,7 @@ package neat
 import (
 	"fmt"
 	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/util"
 )
 
 type Layers [][]network.Node
@@ -154,4 +155,126 @@ func getNodeLayer(layers [][]network.Node, nodeID int) int {
 		}
 	}
 	return -1
+}
+
+func Crossover(cfg Config, best, worst Genome) Genome {
+	childLayers := make(Layers, len(best.layers))
+	childConnections := make([]network.Connection, 0)
+
+	// Count the number of innovations in each genome
+	bestInnovationCount := make(map[int]int)
+	worstInnovationCount := make(map[int]int)
+	for _, bestLayer := range best.layers {
+		for _, bestNode := range bestLayer {
+			bestInnovationCount[bestNode.ID]++
+		}
+	}
+	for _, bestConnection := range best.connections {
+		bestInnovationCount[bestConnection.ID]++
+	}
+	for _, worstLayer := range worst.layers {
+		for _, worstNode := range worstLayer {
+			worstInnovationCount[worstNode.ID]++
+		}
+	}
+	for _, worstConnection := range worst.connections {
+		worstInnovationCount[worstConnection.ID]++
+	}
+
+	// Map to store which parent to take the gene from. 1 = best, 2 = worst.
+	innovationParentChoice := make(map[int]int)
+	// Set all genes to inherit from best by default
+	for innovationID, bestCount := range bestInnovationCount {
+		if bestCount < 1 {
+			continue
+		}
+		innovationParentChoice[innovationID] = 1
+	}
+	for innovationID, worstCount := range worstInnovationCount {
+		if worstCount < 1 {
+			continue
+		}
+		if innovationParentChoice[innovationID] == 0 {
+			// Doesn't exist in best, so don't add it
+		} else {
+			// Exists in best + worst
+			// Work out if we should take best or worst gene
+			if util.FloatBetween(0, 1) < cfg.MateBestRate {
+				innovationParentChoice[innovationID] = 1
+			} else {
+				innovationParentChoice[innovationID] = 2
+			}
+		}
+	}
+
+	bestNodes := make(map[int]network.Node)
+	bestNodesLayer := make(map[int]int)
+	for layerNum, layer := range best.layers {
+		for _, node := range layer {
+			bestNodes[node.ID] = node
+			bestNodesLayer[node.ID] = layerNum
+		}
+	}
+	bestConnections := make(map[int]network.Connection)
+	for _, connection := range best.connections {
+		bestConnections[connection.ID] = connection
+	}
+	worstNodes := make(map[int]network.Node)
+	worstNodesLayer := make(map[int]int)
+	for layerNum, layer := range worst.layers {
+		for _, node := range layer {
+			worstNodes[node.ID] = node
+			worstNodesLayer[node.ID] = layerNum
+		}
+	}
+	worstConnections := make(map[int]network.Connection)
+	for _, connection := range worst.connections {
+		worstConnections[connection.ID] = connection
+	}
+
+	// Add each node that is chosen from best
+	for _, bestLayer := range best.layers {
+		for _, bestNode := range bestLayer {
+			parentChoice := innovationParentChoice[bestNode.ID]
+			layer := bestNodesLayer[bestNode.ID]
+			if parentChoice == 1 {
+				childLayers[layer] = append(childLayers[layer], bestNode)
+			}
+		}
+	}
+
+	// Add each node that is chosen from worst
+	for _, worstLayer := range worst.layers {
+		for _, worstNode := range worstLayer {
+			parentChoice := innovationParentChoice[worstNode.ID]
+			layer := worstNodesLayer[worstNode.ID]
+			// If the node exists in best, take the layer of best instead to preserve and structural changes.
+			if bestLayer, ok := bestNodesLayer[worstNode.ID]; ok {
+				layer = bestLayer
+			}
+			if parentChoice == 2 {
+				childLayers[layer] = append(childLayers[layer], worstNode)
+			}
+		}
+	}
+
+	// Add each connection that is chosen from best
+	for _, bestConnection := range best.connections {
+		parentChoice := innovationParentChoice[bestConnection.ID]
+		if parentChoice == 1 {
+			childConnections = append(childConnections, bestConnection)
+		}
+	}
+	// Add each connection that is chosen from worst
+	for _, worstConnection := range worst.connections {
+		parentChoice := innovationParentChoice[worstConnection.ID]
+		if parentChoice == 2 {
+			childConnections = append(childConnections, worstConnection)
+		}
+	}
+
+	return Genome{
+		layers:      childLayers,
+		connections: childConnections,
+	}
 }
