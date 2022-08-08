@@ -83,80 +83,125 @@ func Activate(nodes []Node, connections []Connection, input []float64) ([]float6
 		return output, fmt.Errorf("input does not match network")
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(len(nodeActivations))
+	nodesActivatedWg := sync.WaitGroup{}
+	nodesActivatedWg.Add(len(nodeActivations))
 	// Start a goroutine for each node
 	for _, activation := range nodeActivations {
 		go func(activation nodeActivation) {
-			defer wg.Done()
+			defer nodesActivatedWg.Done()
 			// Sum the inputs to the node, add the bias, and run the activation function.
 			state := activation.node.Bias
-			for _, inputCh := range activation.in {
-				inputValue, ok := <-inputCh
-				if !ok {
-					continue
+			subInputCh := make(chan float64)
+
+			// Sum state ready for activation
+			sumWg := sync.WaitGroup{}
+			sumWg.Add(1)
+			go func() {
+				defer sumWg.Done()
+				for inputValue := range subInputCh {
+					state += inputValue
 				}
-				state += inputValue
+			}()
+
+			funnelInputsWg := sync.WaitGroup{}
+			funnelInputsWg.Add(len(activation.in))
+			for _, inputCh := range activation.in {
+				// Read each input in separate gorountines so that we don't get deadlocks
+				go func(inputCh <-chan float64, subInputCh chan<- float64) {
+					defer funnelInputsWg.Done()
+					inputValue, ok := <-inputCh
+					if ok {
+						subInputCh <- inputValue
+					}
+				}(inputCh, subInputCh)
 			}
+
+			// Wait for all inputs to be funneled
+			funnelInputsWg.Wait()
+			close(subInputCh)
+			// Wait for the summed state
+			sumWg.Wait()
+
+			// Get the node activation value
 			activated := activation.node.ActivationFn(state)
+
 			// Send the activated value to all connected nodes
+			outputFanOutWg := sync.WaitGroup{}
+			outputFanOutWg.Add(len(activation.out))
 			for _, outputCh := range activation.out {
-				outputCh <- activated
-				close(outputCh)
+				go func(outputCh chan<- float64) {
+					defer outputFanOutWg.Done()
+					outputCh <- activated
+					close(outputCh)
+				}(outputCh)
 			}
 		}(activation)
 	}
 
-	wg.Add(len(connectionActivations))
 	// Start a goroutine for each connection
+	connectionsActivatedWg := sync.WaitGroup{}
+	connectionsActivatedWg.Add(len(connectionActivations))
 	for _, activation := range connectionActivations {
 		go func(activation connectionActivation) {
-			defer wg.Done()
+			defer connectionsActivatedWg.Done()
+			outputSentWg := sync.WaitGroup{}
 			// Multiply the inbound value by the connections weight
 			inValue, ok := <-activation.in
 			if ok && activation.connection.Enabled {
 				activated := inValue * activation.connection.Weight
 				// Send the activated value to the connected node
-				activation.out <- activated
+				outputSentWg.Add(1)
+				go func() {
+					defer outputSentWg.Done()
+					activation.out <- activated
+				}()
+			} else {
+				close(activation.out)
 			}
-			close(activation.out)
+			outputSentWg.Wait()
 		}(activation)
 	}
 
-	wg.Add(len(input))
+	inputSentWg := sync.WaitGroup{}
+	inputSentWg.Add(len(input))
 	// Start a goroutine for passing input into the network
 	for i, value := range input {
 		go func(inputChan chan float64, value float64) {
-			defer wg.Done()
+			defer inputSentWg.Done()
 			// Send each input value to the input node
 			inputChan <- value
 			close(inputChan)
 		}(inputChans[i], value)
 	}
 
-	wg.Add(len(biasChans))
+	biasSentWg := sync.WaitGroup{}
+	biasSentWg.Add(len(biasChans))
 	// Start a goroutine for passing input into the network
 	for _, biasChan := range biasChans {
 		go func(biasChan chan float64) {
-			defer wg.Done()
+			defer biasSentWg.Done()
 			// Send each input value to the input node
 			biasChan <- 1.0
 			close(biasChan)
 		}(biasChan)
 	}
 
-	wg.Add(len(outputChans))
+	outputSentWg := sync.WaitGroup{}
+	outputSentWg.Add(len(outputChans))
 	// Start a goroutine for receiving output values from the network
 	for i, outputChan := range outputChans {
 		go func(outputChan chan float64, i int, output []float64) {
-			defer wg.Done()
+			defer outputSentWg.Done()
 			// Receive the output value, and update the output slice
 			output[i] = <-outputChan
 		}(outputChan, i, output)
 	}
 
-	// Wait for all routines to finish
-	wg.Wait()
+	inputSentWg.Wait()
+	biasSentWg.Wait()
+	nodesActivatedWg.Wait()
+	connectionsActivatedWg.Wait()
+	outputSentWg.Wait()
 
 	// Return the calculated output
 	return output, nil

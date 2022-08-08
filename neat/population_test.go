@@ -1,7 +1,8 @@
-package neat
+package neat_test
 
 import (
 	"fmt"
+	"github.com/jmwri/neatgo/neat"
 	"github.com/stretchr/testify/assert"
 	"math"
 	"sort"
@@ -10,20 +11,20 @@ import (
 )
 
 func TestRunGeneration(t *testing.T) {
-	cfg := DefaultConfig(1, 5)
-	pop, err := GeneratePopulation(cfg)
+	cfg := neat.DefaultConfig(1, 5)
+	pop, err := neat.GeneratePopulation(cfg)
 	assert.NoError(t, err)
 
 	pop = playGame(pop)
 }
 
-func playGame(pop Population) Population {
+func playGame(pop neat.Population) neat.Population {
 	for pop.Generation < 100 {
 		clientStates := pop.States()
 		wg := sync.WaitGroup{}
 		wg.Add(len(clientStates))
 		for _, state := range clientStates {
-			go func(state ClientGenomeState) {
+			go func(state neat.ClientGenomeState) {
 				fitness := 0.0
 				defer wg.Done()
 				defer close(state.SendFitness())
@@ -58,7 +59,7 @@ func playGame(pop Population) Population {
 				}
 			}(state)
 		}
-		pop = RunGeneration(pop)
+		pop = neat.RunGeneration(pop)
 		wg.Wait()
 
 		speciesBestFitnesses := make([]float64, len(pop.Species))

@@ -51,12 +51,18 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 	// Figure out if we need to create a new layer
 	fromLayer := getNodeLayer(genome.layers, connectionFrom.From)
 	toLayer := getNodeLayer(genome.layers, connectionTo.To)
-	addToLayer := toLayer - fromLayer
-	if addToLayer == 1 {
-		// Create new layer
-		genome.layers = append(genome.layers[:toLayer+1], genome.layers[toLayer:]...)
-		genome.layers[toLayer] = []network.Node{}
-		addToLayer = toLayer
+	// Calculate how many layers there are between the connected nodes
+	// From = 3
+	// To = 4
+	// layersBetween = 4-3-1 = 0
+	// There are no layers we can add a node to in between them, so need to create a new one!
+	layersBetween := toLayer - fromLayer - 1
+	// Always add to the layer closest to connectionFrom.From
+	addToLayer := fromLayer + 1
+	if layersBetween < 1 {
+		// Shift all layers from addToLayer up 1
+		genome.layers = append(genome.layers[:addToLayer+1], genome.layers[addToLayer:]...)
+		genome.layers[addToLayer] = []network.Node{}
 	}
 
 	// Disable old connection

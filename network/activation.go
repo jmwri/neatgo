@@ -52,6 +52,7 @@ var ActivationRegistry = &activationRegistry{
 func init() {
 	ActivationRegistry.Set(NoActivation, NoActivationFn)
 	ActivationRegistry.Set(Tanh, math.Tan)
+	ActivationRegistry.Set(Sigmoid, SigmoidFn)
 }
 
 func RandomActivationFunction() ActivationFunction {
@@ -63,8 +64,13 @@ func RandomActivationFunction() ActivationFunction {
 const (
 	NoActivation ActivationFunctionName = "no-activation"
 	Tanh         ActivationFunctionName = "tanh"
+	Sigmoid      ActivationFunctionName = "sigmoid"
 )
 
 func NoActivationFn(x float64) float64 {
 	return x
+}
+
+func SigmoidFn(x float64) float64 {
+	return 1.0 / (1.0 + math.Exp(-x))
 }
