@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// 3 inputs, 1 output
-	cfg := neat.DefaultConfig(3, 1)
+	cfg := neat.DefaultConfig(2, 1)
 	cfg.PopulationSize = 100
 	pop, err := neat.GeneratePopulation(cfg)
 	if err != nil {
@@ -55,36 +55,36 @@ func playGame(pop neat.Population) neat.Population {
 	for _, state := range clientStates {
 		go func(state neat.ClientGenomeState) {
 			defer wg.Done()
-			fitness := 0.0
+			fitness := 4.0
 
-			state.SendInput() <- []float64{0, 0, 0}
+			state.SendInput() <- []float64{0, 0}
 			select {
 			case output := <-state.GetOutput():
-				fitness += 1 - output[0]
+				fitness -= math.Pow(output[0]-1, 2)
 			case err := <-state.GetError():
 				fmt.Printf("failed to process: %s\n", err)
 			}
 
-			state.SendInput() <- []float64{1, 0, 1}
+			state.SendInput() <- []float64{1, 0}
 			select {
 			case output := <-state.GetOutput():
-				fitness += output[0]
+				fitness -= math.Pow(output[0]-0, 2)
 			case err := <-state.GetError():
 				fmt.Printf("failed to process: %s\n", err)
 			}
 
-			state.SendInput() <- []float64{0, 1, 1}
+			state.SendInput() <- []float64{0, 1}
 			select {
 			case output := <-state.GetOutput():
-				fitness += output[0]
+				fitness -= math.Pow(output[0]-0, 2)
 			case err := <-state.GetError():
 				fmt.Printf("failed to process: %s\n", err)
 			}
 
-			state.SendInput() <- []float64{1, 1, 1}
+			state.SendInput() <- []float64{1, 1}
 			select {
 			case output := <-state.GetOutput():
-				fitness += 1 - output[0]
+				fitness -= math.Pow(output[0]-1, 2)
 			case err := <-state.GetError():
 				fmt.Printf("failed to process: %s\n", err)
 			}
