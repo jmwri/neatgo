@@ -2,6 +2,7 @@ package neat
 
 import (
 	"math"
+	"sort"
 )
 
 func NewSpecies(representative Genome) Species {
@@ -23,6 +24,9 @@ type Species struct {
 }
 
 func Speciate(pop Population) Population {
+	for i := range pop.Species {
+		pop.Species[i].Genomes = make([]int, 0)
+	}
 	for i, genome := range pop.Genomes {
 		foundSpecies := false
 		for j, species := range pop.Species {
@@ -41,8 +45,8 @@ func Speciate(pop Population) Population {
 	for i, species := range pop.Species {
 		bestFitness := 0.0
 		totalFitness := 0.0
-		for j := range species.Genomes {
-			genomeFitness := pop.GenomeFitness[j]
+		for _, genome := range species.Genomes {
+			genomeFitness := pop.GenomeFitness[genome]
 			totalFitness += genomeFitness
 			if genomeFitness > bestFitness {
 				bestFitness = genomeFitness
@@ -51,6 +55,22 @@ func Speciate(pop Population) Population {
 		pop.Species[i].AvgFitness = totalFitness / float64(len(species.Genomes))
 		pop.Species[i].BestFitness = bestFitness
 	}
+	return pop
+}
+
+func RankSpecies(pop Population) Population {
+	for _, species := range pop.Species {
+		// Sort genomes in each species in desc order of fitness
+		sort.Slice(species.Genomes, func(i, j int) bool {
+			a := species.Genomes[i]
+			b := species.Genomes[j]
+			return pop.GenomeFitness[a] > pop.GenomeFitness[b]
+		})
+	}
+	// Sort pop.Species in desc order of BestFitness
+	sort.Slice(pop.Species, func(i, j int) bool {
+		return pop.Species[i].BestFitness > pop.Species[j].BestFitness
+	})
 	return pop
 }
 
