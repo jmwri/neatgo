@@ -13,19 +13,19 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 		return genome
 	}
 
-	// If no connections then we can't add a new node.
+	// If no Connections then we can't add a new node.
 	// Add a new connection instead.
-	if len(genome.connections) == 0 {
+	if len(genome.Connections) == 0 {
 		return MutateAddConnection(cfg, genome)
 	}
 
 	connectionIndex := getValidConnectionIndexForAddNodeMutation(genome)
-	// If there are no connections we can break, add a connection.
+	// If there are no Connections we can break, add a connection.
 	if connectionIndex == -1 {
 		return MutateAddConnection(cfg, genome)
 	}
 
-	connection := genome.connections[connectionIndex]
+	connection := genome.Connections[connectionIndex]
 
 	node := network.NewNode(
 		cfg.IDProvider.Next(),
@@ -49,32 +49,32 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 	)
 
 	// Figure out if we need to create a new layer
-	fromLayer := getNodeLayer(genome.layers, connectionFrom.From)
-	toLayer := getNodeLayer(genome.layers, connectionTo.To)
-	// Calculate how many layers there are between the connected nodes
+	fromLayer := getNodeLayer(genome.Layers, connectionFrom.From)
+	toLayer := getNodeLayer(genome.Layers, connectionTo.To)
+	// Calculate how many Layers there are between the connected nodes
 	// From = 3
 	// To = 4
 	// layersBetween = 4-3-1 = 0
-	// There are no layers we can add a node to in between them, so need to create a new one!
+	// There are no Layers we can add a node to in between them, so need to create a new one!
 	layersBetween := toLayer - fromLayer - 1
 	// Always add to the layer closest to connectionFrom.From
 	addToLayer := fromLayer + 1
 	if layersBetween < 1 {
-		// Shift all layers from addToLayer up 1
-		genome.layers = append(genome.layers[:addToLayer+1], genome.layers[addToLayer:]...)
-		genome.layers[addToLayer] = []network.Node{}
+		// Shift all Layers from addToLayer up 1
+		genome.Layers = append(genome.Layers[:addToLayer+1], genome.Layers[addToLayer:]...)
+		genome.Layers[addToLayer] = []network.Node{}
 	}
 
 	// Disable old connection
-	genome.connections[connectionIndex].Enabled = false
-	// Add new node + connections to genome
-	genome.layers[addToLayer] = append(genome.layers[addToLayer], node)
-	genome.connections = append(genome.connections, connectionFrom)
-	genome.connections = append(genome.connections, connectionTo)
+	genome.Connections[connectionIndex].Enabled = false
+	// Add new node + Connections to genome
+	genome.Layers[addToLayer] = append(genome.Layers[addToLayer], node)
+	genome.Connections = append(genome.Connections, connectionFrom)
+	genome.Connections = append(genome.Connections, connectionTo)
 
 	// If we're adding to the first layer after input, connect bias nodes to the new node.
 	if addToLayer == 1 {
-		for _, biasNode := range getBiasNodes(genome.layers) {
+		for _, biasNode := range getBiasNodes(genome.Layers) {
 			biasConnection := network.NewConnection(
 				cfg.IDProvider.Next(),
 				biasNode.ID,
@@ -82,7 +82,7 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 				util.FloatBetween(cfg.MinWeight, cfg.MaxWeight),
 				true,
 			)
-			genome.connections = append(genome.connections, biasConnection)
+			genome.Connections = append(genome.Connections, biasConnection)
 		}
 	}
 
@@ -90,10 +90,10 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 }
 
 func getValidConnectionIndexForAddNodeMutation(genome Genome) int {
-	// Build slice of connections to process in order.
+	// Build slice of Connections to process in order.
 	// Shuffle the slice.
-	connectionIndices := make([]int, len(genome.connections))
-	for i, _ := range genome.connections {
+	connectionIndices := make([]int, len(genome.Connections))
+	for i, _ := range genome.Connections {
 		connectionIndices[i] = i
 	}
 	rand.Shuffle(len(connectionIndices), func(i, j int) {
@@ -102,15 +102,15 @@ func getValidConnectionIndexForAddNodeMutation(genome Genome) int {
 
 	// Try each connection and return the first valid connection.
 	for _, i := range connectionIndices {
-		connection := genome.connections[i]
-		from := getNodeFromLayers(genome.layers, connection.From)
-		to := getNodeFromLayers(genome.layers, connection.To)
+		connection := genome.Connections[i]
+		from := getNodeFromLayers(genome.Layers, connection.From)
+		to := getNodeFromLayers(genome.Layers, connection.To)
 		if from.Type == network.Bias || to.Type == network.Bias {
-			// Don't break any bias connections
+			// Don't break any bias Connections
 			continue
 		}
 		return i
 	}
-	// No connections are valid
+	// No Connections are valid
 	return -1
 }

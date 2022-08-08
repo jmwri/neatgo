@@ -178,16 +178,16 @@ func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool 
 func countExcessAndDisjointGenes(a, b Genome) int {
 	innovationNumCount := make(map[int]int)
 
-	for _, node := range a.layers.Nodes() {
+	for _, node := range a.Layers.Nodes() {
 		innovationNumCount[node.ID]++
 	}
-	for _, node := range b.layers.Nodes() {
+	for _, node := range b.Layers.Nodes() {
 		innovationNumCount[node.ID]++
 	}
-	for _, connection := range a.connections {
+	for _, connection := range a.Connections {
 		innovationNumCount[connection.ID]++
 	}
-	for _, connection := range b.connections {
+	for _, connection := range b.Connections {
 		innovationNumCount[connection.ID]++
 	}
 
@@ -204,11 +204,11 @@ func countExcessAndDisjointGenes(a, b Genome) int {
 func calculateAverageConnectionWeightDiff(a, b Genome) float64 {
 	innovationNumCount := make(map[int]int)
 	innovationWeights := make(map[int]float64)
-	for _, connection := range a.connections {
+	for _, connection := range a.Connections {
 		innovationNumCount[connection.ID]++
 		innovationWeights[connection.ID] = connection.Weight
 	}
-	for _, connection := range b.connections {
+	for _, connection := range b.Connections {
 		innovationNumCount[connection.ID]++
 		innovationWeights[connection.ID] -= connection.Weight
 	}

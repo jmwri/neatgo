@@ -3,6 +3,7 @@ package neat
 import (
 	"fmt"
 	"github.com/jmwri/neatgo/network"
+	"math"
 	"sync"
 )
 
@@ -35,6 +36,7 @@ type Population struct {
 	GenomeFitness []float64
 	Species       []Species
 	Generation    int
+	BestGenome    int
 }
 
 func (p Population) States() []ClientGenomeState {
@@ -129,8 +131,13 @@ func RunGeneration(pop Population) Population {
 	pop = KillBadSpecies(pop)
 	pop = Evolve(pop)
 
-	// TODO: Evolve genomes to fill the rest of the population
-	// Species size should be calculated by their performance against all others
+	highestFitness := math.Inf(-1)
+	for genomeID, fitness := range pop.GenomeFitness {
+		if fitness > highestFitness {
+			highestFitness = fitness
+			pop.BestGenome = genomeID
+		}
+	}
 
 	// Build fresh genome states for next generation.
 	return buildGenomeStates(pop)
@@ -154,7 +161,7 @@ func runGenome(wg *sync.WaitGroup, pop Population, i int) {
 			pop.GenomeFitness[i] = fitness
 			return
 		}
-		output, err := network.Activate(genome.layers.Nodes(), genome.connections, input)
+		output, err := network.Activate(genome.Layers.Nodes(), genome.Connections, input)
 		if err != nil {
 			state.SendError() <- err
 			continue

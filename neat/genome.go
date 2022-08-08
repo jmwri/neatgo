@@ -17,28 +17,28 @@ func (l Layers) Nodes() []network.Node {
 }
 
 type Genome struct {
-	layers      Layers
-	connections []network.Connection
+	Layers      Layers
+	Connections []network.Connection
 }
 
 func (g Genome) NumLayers() int {
-	return len(g.layers)
+	return len(g.Layers)
 }
 func (g Genome) NumNodes() int {
 	nodes := 0
-	for _, layer := range g.layers {
+	for _, layer := range g.Layers {
 		nodes += len(layer)
 	}
 	return nodes
 }
 func (g Genome) NumConnections() int {
-	return len(g.connections)
+	return len(g.Connections)
 }
 
 func NewGenome(layers [][]network.Node, connections []network.Connection) Genome {
 	return Genome{
-		layers:      layers,
-		connections: connections,
+		Layers:      layers,
+		Connections: connections,
 	}
 }
 
@@ -60,7 +60,14 @@ func GenerateGenome(cfg Config) (Genome, error) {
 
 		for nodeNum := 0; nodeNum < numNodes; nodeNum++ {
 			bias := cfg.RandFloatProvider(cfg.MinBias, cfg.MaxBias)
-			activationFn := network.RandomActivationFunction()
+			var activationFn network.ActivationFunction
+			if nodeType == network.Input {
+				activationFn = cfg.InputActivationFn
+			} else if nodeType == network.Output {
+				activationFn = cfg.OutputActivationFn
+			} else {
+				activationFn = network.RandomActivationFunction()
+			}
 			node := network.NewNode(
 				cfg.IDProvider.Next(),
 				nodeType,
@@ -93,25 +100,25 @@ func GenerateGenome(cfg Config) (Genome, error) {
 		}
 	}
 
-	genome.layers = layers
-	genome.connections = connections
+	genome.Layers = layers
+	genome.Connections = connections
 	return genome, nil
 }
 
 func CopyGenome(genome Genome) Genome {
 	cp := Genome{
-		layers:      make([][]network.Node, len(genome.layers)),
-		connections: make([]network.Connection, len(genome.connections)),
+		Layers:      make([][]network.Node, len(genome.Layers)),
+		Connections: make([]network.Connection, len(genome.Connections)),
 	}
 
-	for i, layer := range genome.layers {
-		cp.layers[i] = make([]network.Node, len(layer))
+	for i, layer := range genome.Layers {
+		cp.Layers[i] = make([]network.Node, len(layer))
 		for j, node := range layer {
-			cp.layers[i][j] = node
+			cp.Layers[i][j] = node
 		}
 	}
-	for i, connection := range genome.connections {
-		cp.connections[i] = connection
+	for i, connection := range genome.Connections {
+		cp.Connections[i] = connection
 	}
 	return cp
 }
@@ -158,26 +165,26 @@ func getNodeLayer(layers [][]network.Node, nodeID int) int {
 }
 
 func Crossover(cfg Config, best, worst Genome) Genome {
-	childLayers := make(Layers, len(best.layers))
+	childLayers := make(Layers, len(best.Layers))
 	childConnections := make([]network.Connection, 0)
 
 	// Count the number of innovations in each genome
 	bestInnovationCount := make(map[int]int)
 	worstInnovationCount := make(map[int]int)
-	for _, bestLayer := range best.layers {
+	for _, bestLayer := range best.Layers {
 		for _, bestNode := range bestLayer {
 			bestInnovationCount[bestNode.ID]++
 		}
 	}
-	for _, bestConnection := range best.connections {
+	for _, bestConnection := range best.Connections {
 		bestInnovationCount[bestConnection.ID]++
 	}
-	for _, worstLayer := range worst.layers {
+	for _, worstLayer := range worst.Layers {
 		for _, worstNode := range worstLayer {
 			worstInnovationCount[worstNode.ID]++
 		}
 	}
-	for _, worstConnection := range worst.connections {
+	for _, worstConnection := range worst.Connections {
 		worstInnovationCount[worstConnection.ID]++
 	}
 
@@ -209,31 +216,31 @@ func Crossover(cfg Config, best, worst Genome) Genome {
 
 	bestNodes := make(map[int]network.Node)
 	bestNodesLayer := make(map[int]int)
-	for layerNum, layer := range best.layers {
+	for layerNum, layer := range best.Layers {
 		for _, node := range layer {
 			bestNodes[node.ID] = node
 			bestNodesLayer[node.ID] = layerNum
 		}
 	}
 	bestConnections := make(map[int]network.Connection)
-	for _, connection := range best.connections {
+	for _, connection := range best.Connections {
 		bestConnections[connection.ID] = connection
 	}
 	worstNodes := make(map[int]network.Node)
 	worstNodesLayer := make(map[int]int)
-	for layerNum, layer := range worst.layers {
+	for layerNum, layer := range worst.Layers {
 		for _, node := range layer {
 			worstNodes[node.ID] = node
 			worstNodesLayer[node.ID] = layerNum
 		}
 	}
 	worstConnections := make(map[int]network.Connection)
-	for _, connection := range worst.connections {
+	for _, connection := range worst.Connections {
 		worstConnections[connection.ID] = connection
 	}
 
 	// Add each node that is chosen from best
-	for _, bestLayer := range best.layers {
+	for _, bestLayer := range best.Layers {
 		for _, bestNode := range bestLayer {
 			parentChoice := innovationParentChoice[bestNode.ID]
 			layer := bestNodesLayer[bestNode.ID]
@@ -244,7 +251,7 @@ func Crossover(cfg Config, best, worst Genome) Genome {
 	}
 
 	// Add each node that is chosen from worst
-	for _, worstLayer := range worst.layers {
+	for _, worstLayer := range worst.Layers {
 		for _, worstNode := range worstLayer {
 			parentChoice := innovationParentChoice[worstNode.ID]
 			layer := worstNodesLayer[worstNode.ID]
@@ -259,14 +266,14 @@ func Crossover(cfg Config, best, worst Genome) Genome {
 	}
 
 	// Add each connection that is chosen from best
-	for _, bestConnection := range best.connections {
+	for _, bestConnection := range best.Connections {
 		parentChoice := innovationParentChoice[bestConnection.ID]
 		if parentChoice == 1 {
 			childConnections = append(childConnections, bestConnection)
 		}
 	}
 	// Add each connection that is chosen from worst
-	for _, worstConnection := range worst.connections {
+	for _, worstConnection := range worst.Connections {
 		parentChoice := innovationParentChoice[worstConnection.ID]
 		if parentChoice == 2 {
 			childConnections = append(childConnections, worstConnection)
@@ -274,7 +281,7 @@ func Crossover(cfg Config, best, worst Genome) Genome {
 	}
 
 	return Genome{
-		layers:      childLayers,
-		connections: childConnections,
+		Layers:      childLayers,
+		Connections: childConnections,
 	}
 }

@@ -1,11 +1,16 @@
 package neat
 
-import "github.com/jmwri/neatgo/util"
+import (
+	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/util"
+)
 
 type Config struct {
 	PopulationSize               int
 	Layers                       []int
 	BiasNodes                    int
+	InputActivationFn            network.ActivationFunction
+	OutputActivationFn           network.ActivationFunction
 	IDProvider                   IDProvider
 	RandFloatProvider            util.RandFloatProvider
 	MinBias                      float64
@@ -29,6 +34,8 @@ func DefaultConfig(layers ...int) Config {
 		PopulationSize:               100,
 		Layers:                       layers,
 		BiasNodes:                    1,
+		InputActivationFn:            network.ActivationRegistry.Get(network.NoActivation),
+		OutputActivationFn:           network.ActivationRegistry.Get(network.Sigmoid),
 		IDProvider:                   NewSequentialIDProvider(),
 		RandFloatProvider:            util.FloatBetween,
 		MinBias:                      -1,

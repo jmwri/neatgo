@@ -8,7 +8,7 @@ func MutateConnectionWeights(cfg Config, genome Genome) Genome {
 	if seed > cfg.WeightMutationRate {
 		return genome
 	}
-	for i, connection := range genome.connections {
+	for i, connection := range genome.Connections {
 		// Generate a completely new weight, or modify it slightly
 		seed := cfg.RandFloatProvider(0, 1)
 		newWeight := connection.Weight
@@ -25,7 +25,7 @@ func MutateConnectionWeights(cfg Config, genome Genome) Genome {
 				newWeight = cfg.MinWeight
 			}
 		}
-		genome.connections[i].Weight = newWeight
+		genome.Connections[i].Weight = newWeight
 	}
 	return genome
 }

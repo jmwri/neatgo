@@ -25,7 +25,7 @@ func MutateAddConnection(cfg Config, genome Genome) Genome {
 		true,
 	)
 
-	genome.connections = append(genome.connections, connection)
+	genome.Connections = append(genome.Connections, connection)
 	return genome
 }
 
@@ -35,14 +35,14 @@ type potentialConnection struct {
 
 func getPotentialConnections(genome Genome) []potentialConnection {
 	existingConnections := make(map[int][]int)
-	for _, connection := range genome.connections {
+	for _, connection := range genome.Connections {
 		existingConnections[connection.From] = append(existingConnections[connection.From], connection.To)
 	}
 
 	potentialConnections := make([]potentialConnection, 0)
-	for i := 1; i < len(genome.layers); i++ {
-		layer := genome.layers[i]
-		previousLayer := genome.layers[i-1]
+	for i := 1; i < len(genome.Layers); i++ {
+		layer := genome.Layers[i]
+		previousLayer := genome.Layers[i-1]
 		for _, fromNode := range previousLayer {
 			for _, toNode := range layer {
 				if util.InSlice(existingConnections[fromNode.ID], toNode.ID) {
