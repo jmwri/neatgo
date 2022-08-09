@@ -21,7 +21,7 @@ func TestMutateConnectionWeights_FullMutation(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1)
 	cfg.BiasNodes = 0
 	cfg.WeightMutationRate = 1
-	cfg.WeightFullMutationRate = 1
+	cfg.WeightReplaceRate = 1
 	genome, err := neat.GenerateGenome(cfg)
 	assert.NoError(t, err, "unexpected error when generating genome")
 	actual := neat.MutateConnectionWeights(cfg, genome)
@@ -32,7 +32,7 @@ func TestMutateConnectionWeights_MinimalMutation(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1)
 	cfg.BiasNodes = 0
 	cfg.WeightMutationRate = 1
-	cfg.WeightFullMutationRate = 0
+	cfg.WeightReplaceRate = 0
 	genome, err := neat.GenerateGenome(cfg)
 	assert.NoError(t, err, "unexpected error when generating genome")
 	actual := neat.MutateConnectionWeights(cfg, genome)

@@ -18,7 +18,8 @@ type Config struct {
 	MinWeight                    float64
 	MaxWeight                    float64
 	WeightMutationRate           float64
-	WeightFullMutationRate       float64
+	WeightMutationPower          float64
+	WeightReplaceRate            float64
 	AddConnectionMutationRate    float64
 	AddNodeMutationRate          float64
 	SpeciesCompatExcessCoeff     float64
@@ -38,16 +39,17 @@ func DefaultConfig(layers ...int) Config {
 		OutputActivationFn:           network.ActivationRegistry.Get(network.Sigmoid),
 		IDProvider:                   NewSequentialIDProvider(),
 		RandFloatProvider:            util.FloatBetween,
-		MinBias:                      -1,
-		MaxBias:                      1,
-		MinWeight:                    -1,
-		MaxWeight:                    1,
-		WeightMutationRate:           .8,
-		WeightFullMutationRate:       .1,
-		AddConnectionMutationRate:    .05,
-		AddNodeMutationRate:          .01,
-		SpeciesCompatExcessCoeff:     1,
-		SpeciesCompatWeightDiffCoeff: 0.5,
+		MinBias:                      -30,
+		MaxBias:                      30,
+		MinWeight:                    -30,
+		MaxWeight:                    30,
+		WeightMutationRate:           .4,
+		WeightMutationPower:          .5,
+		WeightReplaceRate:            .1,
+		AddConnectionMutationRate:    .5,
+		AddNodeMutationRate:          .2,
+		SpeciesCompatExcessCoeff:     2,
+		SpeciesCompatWeightDiffCoeff: 2,
 		SpeciesCompatThreshold:       3,
 		SpeciesStalenessThreshold:    15,
 		MateCrossoverRate:            .75,

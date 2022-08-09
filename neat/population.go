@@ -32,11 +32,12 @@ type Population struct {
 	Cfg     Config
 	Genomes []Genome
 	// GenomeStates contains a GenomeState and should be used for the Genome as the same index.
-	GenomeStates  []GenomeState
-	GenomeFitness []float64
-	Species       []Species
-	Generation    int
-	BestGenome    int
+	GenomeStates      []GenomeState
+	GenomeFitness     []float64
+	Species           []Species
+	Generation        int
+	BestGenome        Genome
+	BestGenomeFitness float64
 }
 
 func (p Population) States() []ClientGenomeState {
@@ -135,7 +136,8 @@ func RunGeneration(pop Population) Population {
 	for genomeID, fitness := range pop.GenomeFitness {
 		if fitness > highestFitness {
 			highestFitness = fitness
-			pop.BestGenome = genomeID
+			pop.BestGenomeFitness = fitness
+			pop.BestGenome = pop.Genomes[genomeID]
 		}
 	}
 
