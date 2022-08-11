@@ -44,7 +44,7 @@ func main() {
 
 	solved := false
 	var generation int
-	for generation = 1; generation <= 200; generation++ {
+	for generation = 1; generation <= 300; generation++ {
 		pop = playGame(pop)
 		bestFitness := pop.BestGenomeFitness
 
