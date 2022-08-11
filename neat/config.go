@@ -37,6 +37,8 @@ type Config struct {
 	SpeciesStalenessThreshold    int
 	MateCrossoverRate            float64
 	MateBestRate                 float64
+	// Population
+	TopGenomesFromSpeciesToFill int
 }
 
 func DefaultConfig(layers ...int) Config {
@@ -71,5 +73,7 @@ func DefaultConfig(layers ...int) Config {
 		SpeciesStalenessThreshold:    15,
 		MateCrossoverRate:            .75,
 		MateBestRate:                 .5,
+
+		TopGenomesFromSpeciesToFill: 3,
 	}
 }

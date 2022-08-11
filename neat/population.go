@@ -205,8 +205,8 @@ func Evolve(pop Population) Population {
 		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
 		newFitness[newGenomeIndex] = pop.GenomeFitness[oldGenomeIndex]
 
-		// Take the top 3 genomes from each species for reproduction later
-		for j := 0; j < 3; j++ {
+		// Take the top N genomes from each species for reproduction later
+		for j := 0; j < pop.Cfg.TopGenomesFromSpeciesToFill; j++ {
 			if j >= len(species.Genomes) {
 				break
 			}
