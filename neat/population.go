@@ -196,23 +196,12 @@ func buildGenomeStates(pop Population) Population {
 func Evolve(pop Population) Population {
 	offspringCount := getDesiredOffspringCount(pop)
 	newGenomes := make([]Genome, 0)
-	newStates := make([]GenomeState, pop.Cfg.PopulationSize)
-	newFitness := make([]float64, pop.Cfg.PopulationSize)
+	newFitness := make([]float64, 0)
 	newSpecies := make([]Species, 0)
 
 	topSpeciesGenomes := make([]int, 0)
 
 	for i, species := range pop.Species {
-		numOffspring, ok := offspringCount[i]
-		if !ok {
-			continue
-		}
-		// Add the best genome of each species without mutation
-		oldGenomeIndex := species.Genomes[0]
-		newGenomeIndex := len(newGenomes)
-		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
-		newFitness[newGenomeIndex] = pop.GenomeFitness[oldGenomeIndex]
-
 		// Take the top N genomes from each species for reproduction later
 		for j := 0; j < pop.Cfg.TopGenomesFromSpeciesToFill; j++ {
 			if j >= len(species.Genomes) {
@@ -222,14 +211,27 @@ func Evolve(pop Population) Population {
 			topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
 		}
 
-		speciesGenomes := []int{newGenomeIndex}
+		numOffspring, ok := offspringCount[i]
+		if !ok {
+			continue
+		}
+
+		speciesGenomes := make([]int, 0)
+
+		// Add the best genome of each species without mutation
+		oldGenomeIndex := species.Genomes[0]
+		newGenomeIndex := len(newGenomes)
+		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
+		newFitness = append(newFitness, pop.GenomeFitness[oldGenomeIndex])
+		speciesGenomes = append(speciesGenomes, newGenomeIndex)
+
 		// We create numOffspring-1 children here, as we've already carried over the best
 		for j := 1; j < numOffspring; j++ {
 			// Get offspring from the species
 			offspring := GetOffspring(pop, pop.Species[i])
 			newGenomeIndex = len(newGenomes)
 			newGenomes = append(newGenomes, offspring)
-			newFitness[newGenomeIndex] = 0
+			newFitness = append(newFitness, 0)
 			speciesGenomes = append(speciesGenomes, newGenomeIndex)
 		}
 		species.Genomes = speciesGenomes
@@ -237,6 +239,7 @@ func Evolve(pop Population) Population {
 	}
 
 	// Once processed all species, if we have some population size left over, crossover the best genomes of all species.
+	// Don't add these genomes to any species.
 	if len(newGenomes) < pop.Cfg.PopulationSize {
 		for len(newGenomes) < pop.Cfg.PopulationSize {
 			aTopIndex := util.IntBetween(0, len(topSpeciesGenomes))
@@ -249,16 +252,14 @@ func Evolve(pop Population) Population {
 			aGenome := pop.Genomes[a]
 			bGenome := pop.Genomes[b]
 			baby := Crossover(pop.Cfg, aGenome, bGenome)
-			newGenomeIndex := len(newGenomes)
 			newGenomes = append(newGenomes, baby)
-			newFitness[newGenomeIndex] = 0
-			newSpecies[0].Genomes = append(newSpecies[0].Genomes, newGenomeIndex)
+			newFitness = append(newFitness, 0)
 		}
 	}
 
 	pop.Genomes = newGenomes
 	pop.GenomeFitness = newFitness
 	pop.Species = newSpecies
-	pop.GenomeStates = newStates
+	pop.GenomeStates = make([]GenomeState, len(newGenomes))
 	return pop
 }

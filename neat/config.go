@@ -23,6 +23,9 @@ type Config struct {
 	AddNodeMutationRate float64
 	MinBias             float64
 	MaxBias             float64
+	BiasMutationRate    float64
+	BiasMutationPower   float64
+	BiasReplaceRate     float64
 	// Connection configuration
 	MinWeight                 float64
 	MaxWeight                 float64
@@ -59,6 +62,9 @@ func DefaultConfig(layers ...int) Config {
 		AddNodeMutationRate: .2,
 		MinBias:             -30,
 		MaxBias:             30,
+		BiasMutationRate:    .4,
+		BiasMutationPower:   .5,
+		BiasReplaceRate:     .1,
 
 		AddConnectionMutationRate: .5,
 		MinWeight:                 -30,

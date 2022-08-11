@@ -124,6 +124,7 @@ func CopyGenome(genome Genome) Genome {
 }
 
 func MutateGenome(cfg Config, genome Genome) Genome {
+	genome = MutateNodeBiases(cfg, genome)
 	genome = MutateConnectionWeights(cfg, genome)
 	genome = MutateAddConnection(cfg, genome)
 	genome = MutateAddNode(cfg, genome)

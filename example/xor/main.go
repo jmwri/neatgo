@@ -18,6 +18,7 @@ func main() {
 
 	cfg.BiasNodes = 0
 
+	cfg.OutputActivationFn = network.Sigmoid
 	cfg.HiddenActivationFns = []network.ActivationFunctionName{
 		network.Sigmoid,
 	}
@@ -66,6 +67,14 @@ BestFitness: %f
 	dumpGenome(pop.BestEverGenome)
 }
 
+func outputToAnswer(output []float64) float64 {
+	if output[0] < .5 {
+		return 0
+	} else {
+		return 1
+	}
+}
+
 func playGame(pop neat.Population) neat.Population {
 	clientStates := pop.States()
 	wg := sync.WaitGroup{}
@@ -101,7 +110,7 @@ func playGame(pop neat.Population) neat.Population {
 				state.SendInput() <- input
 				select {
 				case output := <-state.GetOutput():
-					fitness += fitnessFunc(answer, output[0])
+					fitness += fitnessFunc(answer, outputToAnswer(output))
 				case err := <-state.GetError():
 					fmt.Printf("failed to process: %s\n", err)
 				}
@@ -145,7 +154,7 @@ func runTest(genome neat.Genome) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("input %v expect %v got %v\n", test.in, test.expected, output)
+		fmt.Printf("input %v expect %v got %v\n", test.in, test.expected, outputToAnswer(output))
 	}
 }
 
