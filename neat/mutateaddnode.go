@@ -31,7 +31,7 @@ func MutateAddNode(cfg Config, genome Genome) Genome {
 		cfg.IDProvider.Next(),
 		network.Hidden,
 		util.FloatBetween(cfg.MinBias, cfg.MaxBias),
-		network.RandomActivationFunction(),
+		network.RandomActivationFunction(cfg.HiddenActivationFns...),
 	)
 	connectionFrom := network.NewConnection(
 		cfg.IDProvider.Next(),

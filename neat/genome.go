@@ -66,7 +66,7 @@ func GenerateGenome(cfg Config) (Genome, error) {
 			} else if nodeType == network.Output {
 				activationFn = cfg.OutputActivationFn
 			} else {
-				activationFn = network.RandomActivationFunction()
+				activationFn = network.RandomActivationFunction(cfg.HiddenActivationFns...)
 			}
 			node := network.NewNode(
 				cfg.IDProvider.Next(),

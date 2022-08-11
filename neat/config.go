@@ -11,6 +11,7 @@ type Config struct {
 	BiasNodes                    int
 	InputActivationFn            network.ActivationFunction
 	OutputActivationFn           network.ActivationFunction
+	HiddenActivationFns          []network.ActivationFunctionName
 	IDProvider                   IDProvider
 	RandFloatProvider            util.RandFloatProvider
 	MinBias                      float64
@@ -37,6 +38,7 @@ func DefaultConfig(layers ...int) Config {
 		BiasNodes:                    1,
 		InputActivationFn:            network.ActivationRegistry.Get(network.NoActivation),
 		OutputActivationFn:           network.ActivationRegistry.Get(network.Sigmoid),
+		HiddenActivationFns:          network.ActivationRegistry.Names(),
 		IDProvider:                   NewSequentialIDProvider(),
 		RandFloatProvider:            util.FloatBetween,
 		MinBias:                      -30,

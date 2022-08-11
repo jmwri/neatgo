@@ -7,9 +7,11 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"time"
 )
 
 func main() {
+	rand.Seed(time.Now().Unix())
 	// 2 inputs, 1 output
 	cfg := neat.DefaultConfig(2, 1)
 	cfg.PopulationSize = 128
@@ -18,6 +20,9 @@ func main() {
 	cfg.MateBestRate = .5
 	cfg.SpeciesStalenessThreshold = 30
 	cfg.BiasNodes = 0
+	cfg.HiddenActivationFns = []network.ActivationFunctionName{
+		network.Sigmoid,
+	}
 	pop, err := neat.GeneratePopulation(cfg)
 	if err != nil {
 		panic(err)
