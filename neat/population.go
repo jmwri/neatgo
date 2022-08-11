@@ -213,7 +213,6 @@ func Evolve(pop Population) Population {
 			oldGenomeIndex := species.Genomes[j]
 			topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
 		}
-		topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
 
 		speciesGenomes := []int{newGenomeIndex}
 		// We create numOffspring-1 children here, as we've already carried over the best
