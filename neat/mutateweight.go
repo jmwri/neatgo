@@ -4,13 +4,14 @@ import "github.com/jmwri/neatgo/util"
 
 func MutateConnectionWeights(cfg Config, genome Genome) Genome {
 	genome = CopyGenome(genome)
-	seed := cfg.RandFloatProvider(0, 1)
-	if seed > cfg.WeightMutationRate {
-		return genome
-	}
 	for i, connection := range genome.Connections {
-		// Generate a completely new weight, or modify it slightly
 		seed := cfg.RandFloatProvider(0, 1)
+		if seed > cfg.WeightMutationRate {
+			continue
+		}
+
+		// Generate a completely new weight, or modify it slightly
+		seed = cfg.RandFloatProvider(0, 1)
 		newWeight := connection.Weight
 		if seed <= cfg.WeightReplaceRate {
 			previous := newWeight
