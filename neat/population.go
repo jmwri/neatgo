@@ -12,12 +12,14 @@ func GeneratePopulation(cfg Config) (Population, error) {
 	genomes := make([]Genome, cfg.PopulationSize)
 	genomeStates := make([]GenomeState, cfg.PopulationSize)
 	pop := Population{
-		Cfg:           cfg,
-		Genomes:       genomes,
-		GenomeStates:  genomeStates,
-		GenomeFitness: make([]float64, cfg.PopulationSize),
-		Species:       make([]Species, 0),
-		Generation:    0,
+		Cfg:                   cfg,
+		Genomes:               genomes,
+		GenomeStates:          genomeStates,
+		GenomeFitness:         make([]float64, cfg.PopulationSize),
+		Species:               make([]Species, 0),
+		Generation:            0,
+		BestEverGenomeFitness: math.Inf(-1),
+		BestGenomeFitness:     math.Inf(-1),
 	}
 	var err error
 	for i := 0; i < cfg.PopulationSize; i++ {
@@ -33,12 +35,14 @@ type Population struct {
 	Cfg     Config
 	Genomes []Genome
 	// GenomeStates contains a GenomeState and should be used for the Genome as the same index.
-	GenomeStates      []GenomeState
-	GenomeFitness     []float64
-	Species           []Species
-	Generation        int
-	BestGenome        Genome
-	BestGenomeFitness float64
+	GenomeStates          []GenomeState
+	GenomeFitness         []float64
+	Species               []Species
+	Generation            int
+	BestEverGenome        Genome
+	BestEverGenomeFitness float64
+	BestGenome            Genome
+	BestGenomeFitness     float64
 }
 
 func (p Population) States() []ClientGenomeState {
@@ -140,6 +144,10 @@ func RunGeneration(pop Population) Population {
 			pop.BestGenomeFitness = fitness
 			pop.BestGenome = pop.Genomes[genomeID]
 		}
+	}
+	if pop.BestGenomeFitness > pop.BestEverGenomeFitness {
+		pop.BestEverGenomeFitness = pop.BestGenomeFitness
+		pop.BestEverGenome = pop.BestGenome
 	}
 
 	// Build fresh genome states for next generation.

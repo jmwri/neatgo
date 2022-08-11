@@ -57,13 +57,13 @@ BestFitness: %f
 		}
 	}
 	if solved {
-		fmt.Printf("Solved xor after %d generations with fitness %f\n", generation, pop.BestGenomeFitness)
+		fmt.Printf("Solved xor after %d generations with fitness %f\n", generation, pop.BestEverGenomeFitness)
 	} else {
-		fmt.Printf("Failed xor after %d generations with fitness %f\n", generation, pop.BestGenomeFitness)
+		fmt.Printf("Failed xor after %d generations with fitness %f\n", generation, pop.BestEverGenomeFitness)
 	}
 
-	runTest(pop.BestGenome)
-	dumpGenome(pop.BestGenome)
+	runTest(pop.BestEverGenome)
+	dumpGenome(pop.BestEverGenome)
 }
 
 func playGame(pop neat.Population) neat.Population {
