@@ -14,11 +14,19 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	// 2 inputs, 1 output
 	cfg := neat.DefaultConfig(2, 1)
-	cfg.PopulationSize = 128
-	cfg.WeightReplaceRate = 0
-	cfg.WeightMutationPower = 0.1
+	cfg.PopulationSize = 150
+
+	cfg.WeightMutationRate = .8
+	cfg.WeightMutationPower = .5
+	cfg.WeightReplaceRate = .1
+	cfg.AddConnectionMutationRate = .2
+	cfg.AddNodeMutationRate = .05
+	cfg.SpeciesCompatExcessCoeff = 1
+	cfg.SpeciesCompatWeightDiffCoeff = .5
+	cfg.SpeciesCompatThreshold = 3
+	cfg.SpeciesStalenessThreshold = 20
+	cfg.MateCrossoverRate = .75
 	cfg.MateBestRate = .5
-	cfg.SpeciesStalenessThreshold = 30
 	cfg.BiasNodes = 0
 	cfg.HiddenActivationFns = []network.ActivationFunctionName{
 		network.Sigmoid,
@@ -36,9 +44,10 @@ func main() {
 BestFitness: %f
 -------------------------
 `, generation, bestFitness)
-		if bestFitness == 4 {
+		if bestFitness >= 3.9 {
 			fmt.Printf("Solved xor after %d generations with fitness %f\n", generation, bestFitness)
 			runTest(pop.BestGenome)
+			dumpGenome(pop.BestGenome)
 			break
 		}
 	}
@@ -125,4 +134,9 @@ func runTest(genome neat.Genome) {
 		}
 		fmt.Printf("input %v expect %v got %v\n", test.in, test.expected, output)
 	}
+}
+
+func dumpGenome(genome neat.Genome) {
+	fmt.Println(genome.Layers)
+	fmt.Println(genome.Connections)
 }
