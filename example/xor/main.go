@@ -16,27 +16,34 @@ func main() {
 	cfg := neat.DefaultConfig(2, 1)
 	cfg.PopulationSize = 150
 
-	cfg.WeightMutationRate = .8
-	cfg.WeightMutationPower = .5
-	cfg.WeightReplaceRate = .1
-	cfg.AddConnectionMutationRate = .2
+	cfg.BiasNodes = 0
+
+	cfg.HiddenActivationFns = []network.ActivationFunctionName{
+		network.Sigmoid,
+	}
+
 	cfg.AddNodeMutationRate = .05
+
+	cfg.AddConnectionMutationRate = .2
+	cfg.WeightMutationRate = .8
+	cfg.WeightMutationPower = .1
+	cfg.WeightReplaceRate = .1
+
 	cfg.SpeciesCompatExcessCoeff = 1
 	cfg.SpeciesCompatWeightDiffCoeff = .5
 	cfg.SpeciesCompatThreshold = 3
 	cfg.SpeciesStalenessThreshold = 20
 	cfg.MateCrossoverRate = .75
 	cfg.MateBestRate = .5
-	cfg.BiasNodes = 0
-	cfg.HiddenActivationFns = []network.ActivationFunctionName{
-		network.Sigmoid,
-	}
+
 	pop, err := neat.GeneratePopulation(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	for generation := 1; generation <= 1000; generation++ {
+	solved := false
+	var generation int
+	for generation = 1; generation <= 200; generation++ {
 		pop = playGame(pop)
 		bestFitness := pop.BestGenomeFitness
 
@@ -45,12 +52,18 @@ BestFitness: %f
 -------------------------
 `, generation, bestFitness)
 		if bestFitness >= 3.9 {
-			fmt.Printf("Solved xor after %d generations with fitness %f\n", generation, bestFitness)
-			runTest(pop.BestGenome)
-			dumpGenome(pop.BestGenome)
+			solved = true
 			break
 		}
 	}
+	if solved {
+		fmt.Printf("Solved xor after %d generations with fitness %f\n", generation, pop.BestGenomeFitness)
+	} else {
+		fmt.Printf("Failed xor after %d generations with fitness %f\n", generation, pop.BestGenomeFitness)
+	}
+
+	runTest(pop.BestGenome)
+	dumpGenome(pop.BestGenome)
 }
 
 func playGame(pop neat.Population) neat.Population {

@@ -6,23 +6,31 @@ import (
 )
 
 type Config struct {
-	PopulationSize               int
-	Layers                       []int
-	BiasNodes                    int
-	InputActivationFn            network.ActivationFunction
-	OutputActivationFn           network.ActivationFunction
-	HiddenActivationFns          []network.ActivationFunctionName
-	IDProvider                   IDProvider
-	RandFloatProvider            util.RandFloatProvider
-	MinBias                      float64
-	MaxBias                      float64
-	MinWeight                    float64
-	MaxWeight                    float64
-	WeightMutationRate           float64
-	WeightMutationPower          float64
-	WeightReplaceRate            float64
-	AddConnectionMutationRate    float64
-	AddNodeMutationRate          float64
+	// Providers
+	IDProvider        IDProvider
+	RandFloatProvider util.RandFloatProvider
+	// Number of genomes within a population
+	PopulationSize int
+	// Number of nodes within each layer
+	Layers []int
+	// Number of bias nodes
+	BiasNodes int
+	// Activation functions
+	InputActivationFn   network.ActivationFunctionName
+	OutputActivationFn  network.ActivationFunctionName
+	HiddenActivationFns []network.ActivationFunctionName
+	// Node configuration
+	AddNodeMutationRate float64
+	MinBias             float64
+	MaxBias             float64
+	// Connection configuration
+	MinWeight                 float64
+	MaxWeight                 float64
+	WeightMutationRate        float64
+	WeightMutationPower       float64
+	WeightReplaceRate         float64
+	AddConnectionMutationRate float64
+	// Speciation
 	SpeciesCompatExcessCoeff     float64
 	SpeciesCompatWeightDiffCoeff float64
 	SpeciesCompatThreshold       float64
@@ -33,23 +41,30 @@ type Config struct {
 
 func DefaultConfig(layers ...int) Config {
 	return Config{
-		PopulationSize:               100,
-		Layers:                       layers,
-		BiasNodes:                    1,
-		InputActivationFn:            network.ActivationRegistry.Get(network.NoActivation),
-		OutputActivationFn:           network.ActivationRegistry.Get(network.Sigmoid),
-		HiddenActivationFns:          network.ActivationRegistry.Names(),
-		IDProvider:                   NewSequentialIDProvider(),
-		RandFloatProvider:            util.FloatBetween,
-		MinBias:                      -30,
-		MaxBias:                      30,
-		MinWeight:                    -30,
-		MaxWeight:                    30,
-		WeightMutationRate:           .4,
-		WeightMutationPower:          .5,
-		WeightReplaceRate:            .1,
-		AddConnectionMutationRate:    .5,
-		AddNodeMutationRate:          .2,
+		IDProvider:        NewSequentialIDProvider(),
+		RandFloatProvider: util.FloatBetween,
+
+		PopulationSize: 100,
+
+		Layers: layers,
+
+		BiasNodes: 1,
+
+		InputActivationFn:   network.NoActivation,
+		OutputActivationFn:  network.Sigmoid,
+		HiddenActivationFns: network.ActivationRegistry.Names(),
+
+		AddNodeMutationRate: .2,
+		MinBias:             -30,
+		MaxBias:             30,
+
+		AddConnectionMutationRate: .5,
+		MinWeight:                 -30,
+		MaxWeight:                 30,
+		WeightMutationRate:        .4,
+		WeightMutationPower:       .5,
+		WeightReplaceRate:         .1,
+
 		SpeciesCompatExcessCoeff:     1,
 		SpeciesCompatWeightDiffCoeff: .5,
 		SpeciesCompatThreshold:       3,

@@ -71,12 +71,12 @@ func init() {
 	ActivationRegistry.Set(Cube, CubeFn)
 }
 
-func RandomActivationFunction(choices ...ActivationFunctionName) ActivationFunction {
+func RandomActivationFunction(choices ...ActivationFunctionName) ActivationFunctionName {
 	if len(choices) == 0 {
 		choices = ActivationRegistry.Names()
 	}
 	randomSelection := util.IntBetween(0, len(choices))
-	return ActivationRegistry.Get(choices[randomSelection])
+	return choices[randomSelection]
 }
 
 const (

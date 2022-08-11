@@ -9,7 +9,7 @@ const (
 	Output
 )
 
-func NewNode(id int, nodeType NodeType, bias float64, activationFn ActivationFunction) Node {
+func NewNode(id int, nodeType NodeType, bias float64, activationFn ActivationFunctionName) Node {
 	return Node{
 		ID:           id,
 		Type:         nodeType,
@@ -22,5 +22,5 @@ type Node struct {
 	ID           int
 	Type         NodeType
 	Bias         float64
-	ActivationFn ActivationFunction
+	ActivationFn ActivationFunctionName
 }

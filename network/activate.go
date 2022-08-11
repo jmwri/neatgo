@@ -122,8 +122,10 @@ func Activate(nodes []Node, connections []Connection, input []float64) ([]float6
 			// Wait for the summed state
 			sumWg.Wait()
 
+			activationFn := ActivationRegistry.Get(activation.node.ActivationFn)
+
 			// Get the node activation value
-			activated := activation.node.ActivationFn(state)
+			activated := activationFn(state)
 
 			// Send the activated value to all connected nodes
 			outputFanOutWg := sync.WaitGroup{}

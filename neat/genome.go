@@ -60,7 +60,7 @@ func GenerateGenome(cfg Config) (Genome, error) {
 
 		for nodeNum := 0; nodeNum < numNodes; nodeNum++ {
 			bias := cfg.RandFloatProvider(cfg.MinBias, cfg.MaxBias)
-			var activationFn network.ActivationFunction
+			var activationFn network.ActivationFunctionName
 			if nodeType == network.Input {
 				activationFn = cfg.InputActivationFn
 			} else if nodeType == network.Output {
@@ -95,7 +95,7 @@ func GenerateGenome(cfg Config) (Genome, error) {
 			continue
 		}
 		for nodeNum := 0; nodeNum < cfg.BiasNodes; nodeNum++ {
-			node := network.NewNode(cfg.IDProvider.Next(), network.Bias, 0, network.NoActivationFn)
+			node := network.NewNode(cfg.IDProvider.Next(), network.Bias, 0, network.NoActivation)
 			layers[i] = append(layers[i], node)
 		}
 	}

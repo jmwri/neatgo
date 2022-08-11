@@ -39,7 +39,7 @@ func TestMutateAddConnection_FullChange(t *testing.T) {
 				ID:           1,
 				Type:         network.Input,
 				Bias:         0,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 		},
 		{
@@ -47,13 +47,13 @@ func TestMutateAddConnection_FullChange(t *testing.T) {
 				ID:           2,
 				Type:         network.Hidden,
 				Bias:         0,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 			{
 				ID:           3,
 				Type:         network.Hidden,
 				Bias:         0,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 		},
 		{
@@ -61,13 +61,13 @@ func TestMutateAddConnection_FullChange(t *testing.T) {
 				ID:           4,
 				Type:         network.Output,
 				Bias:         1,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 			{
 				ID:           5,
 				Type:         network.Output,
 				Bias:         1,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 		},
 	}

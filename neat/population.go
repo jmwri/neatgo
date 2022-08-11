@@ -3,6 +3,7 @@ package neat
 import (
 	"fmt"
 	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/util"
 	"math"
 	"sync"
 )
@@ -191,6 +192,8 @@ func Evolve(pop Population) Population {
 	newFitness := make([]float64, pop.Cfg.PopulationSize)
 	newSpecies := make([]Species, 0)
 
+	topSpeciesGenomes := make([]int, 0)
+
 	for i, species := range pop.Species {
 		numOffspring, ok := offspringCount[i]
 		if !ok {
@@ -201,6 +204,16 @@ func Evolve(pop Population) Population {
 		newGenomeIndex := len(newGenomes)
 		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
 		newFitness[newGenomeIndex] = pop.GenomeFitness[oldGenomeIndex]
+
+		// Take the top 3 genomes from each species for reproduction later
+		for j := 0; j < 3; j++ {
+			if j >= len(species.Genomes) {
+				break
+			}
+			oldGenomeIndex := species.Genomes[j]
+			topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
+		}
+		topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
 
 		speciesGenomes := []int{newGenomeIndex}
 		// We create numOffspring-1 children here, as we've already carried over the best
@@ -216,13 +229,21 @@ func Evolve(pop Population) Population {
 		newSpecies = append(newSpecies, species)
 	}
 
-	// Once processed all species, if we have some population size left over, just use the best species.
+	// Once processed all species, if we have some population size left over, crossover the best genomes of all species.
 	if len(newGenomes) < pop.Cfg.PopulationSize {
-		bestSpecies := pop.Species[0]
 		for len(newGenomes) < pop.Cfg.PopulationSize {
-			offspring := GetOffspring(pop, bestSpecies)
+			aTopIndex := util.IntBetween(0, len(topSpeciesGenomes))
+			bTopIndex := util.IntBetween(0, len(topSpeciesGenomes))
+			a := topSpeciesGenomes[aTopIndex]
+			b := topSpeciesGenomes[bTopIndex]
+			if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
+				a, b = b, a
+			}
+			aGenome := pop.Genomes[a]
+			bGenome := pop.Genomes[b]
+			baby := Crossover(pop.Cfg, aGenome, bGenome)
 			newGenomeIndex := len(newGenomes)
-			newGenomes = append(newGenomes, offspring)
+			newGenomes = append(newGenomes, baby)
 			newFitness[newGenomeIndex] = 0
 			newSpecies[0].Genomes = append(newSpecies[0].Genomes, newGenomeIndex)
 		}

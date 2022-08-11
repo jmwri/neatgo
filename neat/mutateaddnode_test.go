@@ -28,7 +28,7 @@ func TestMutateAddNode_NodeAdded(t *testing.T) {
 				ID:           1,
 				Type:         network.Input,
 				Bias:         0,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 		},
 		{
@@ -36,7 +36,7 @@ func TestMutateAddNode_NodeAdded(t *testing.T) {
 				ID:           2,
 				Type:         network.Output,
 				Bias:         1,
-				ActivationFn: network.NoActivationFn,
+				ActivationFn: network.NoActivation,
 			},
 		},
 	}

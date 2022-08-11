@@ -12,31 +12,31 @@ func TestActivate(t *testing.T) {
 			ID:           1,
 			Type:         network.Input,
 			Bias:         0,
-			ActivationFn: network.NoActivationFn,
+			ActivationFn: network.NoActivation,
 		},
 		{
 			ID:           2,
 			Type:         network.Input,
 			Bias:         0,
-			ActivationFn: network.NoActivationFn,
+			ActivationFn: network.NoActivation,
 		},
 		{
 			ID:           3,
 			Type:         network.Bias,
 			Bias:         0,
-			ActivationFn: network.NoActivationFn,
+			ActivationFn: network.NoActivation,
 		},
 		{
 			ID:           4,
 			Type:         network.Hidden,
 			Bias:         0,
-			ActivationFn: network.NoActivationFn,
+			ActivationFn: network.NoActivation,
 		},
 		{
 			ID:           5,
 			Type:         network.Output,
 			Bias:         1,
-			ActivationFn: network.NoActivationFn,
+			ActivationFn: network.NoActivation,
 		},
 	}
 	connections := []network.Connection{
