@@ -45,6 +45,7 @@ func Speciate(pop Population) Population {
 	}
 	for i, species := range pop.Species {
 		oldBestFitness := species.BestFitness
+		oldAvgFitness := species.AvgFitness
 		bestFitness := 0.0
 		totalFitness := 0.0
 		for _, genome := range species.Genomes {
@@ -56,7 +57,12 @@ func Speciate(pop Population) Population {
 		}
 		pop.Species[i].AvgFitness = totalFitness / float64(len(species.Genomes))
 		pop.Species[i].BestFitness = bestFitness
-		if pop.Species[i].BestFitness == oldBestFitness {
+
+		// If the species didn't get a new max, or increased average, then mark it as stale.
+		bestImproved := pop.Species[i].BestFitness > oldBestFitness
+		avgImproved := pop.Species[i].AvgFitness > oldAvgFitness
+		improved := bestImproved || avgImproved
+		if !improved {
 			pop.Species[i].Staleness++
 		} else {
 			pop.Species[i].Staleness = 0

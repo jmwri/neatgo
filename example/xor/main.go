@@ -40,7 +40,7 @@ func main() {
 	cfg.SpeciesCompatWeightDiffCoeff = .5
 	cfg.SpeciesCompatThreshold = 2
 	cfg.SpeciesStalenessThreshold = 20
-	cfg.MateCrossoverRate = .75
+	cfg.MateCrossoverRate = .5
 	cfg.MateBestRate = .5
 
 	pop, err := neat.GeneratePopulation(cfg)
@@ -50,7 +50,7 @@ func main() {
 
 	solved := false
 	var generation int
-	for generation = 1; generation <= 300; generation++ {
+	for generation = 1; generation <= 1000; generation++ {
 		pop = playGame(pop)
 		bestFitness := pop.BestGenomeFitness
 

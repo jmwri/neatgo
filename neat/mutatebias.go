@@ -1,6 +1,8 @@
 package neat
 
-import "github.com/jmwri/neatgo/util"
+import (
+	"github.com/jmwri/neatgo/util"
+)
 
 func MutateNodeBiases(cfg Config, genome Genome) Genome {
 	genome = CopyGenome(genome)
