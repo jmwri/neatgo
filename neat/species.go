@@ -112,15 +112,21 @@ func FitnessSharing(pop Population) Population {
 
 func KillStaleSpecies(pop Population) Population {
 	keepSpecies := make([]Species, 0)
+	removedSpecies := make([]Species, 0)
 	for _, species := range pop.Species {
 		if species.Staleness < pop.Cfg.SpeciesStalenessThreshold {
 			keepSpecies = append(keepSpecies, species)
+		} else {
+			removedSpecies = append(removedSpecies, species)
 		}
 	}
 
-	// Always keep at least 1 species
-	if len(keepSpecies) == 0 {
-		keepSpecies = append(keepSpecies, pop.Species[0])
+	// If we're killing too many species, add some stale ones back in.
+	for i := len(keepSpecies); i < pop.Cfg.MinSpecies; i++ {
+		if i >= len(removedSpecies) {
+			break
+		}
+		keepSpecies = append(keepSpecies, removedSpecies[i])
 	}
 
 	pop.Species = keepSpecies
@@ -132,8 +138,8 @@ func KillBadSpecies(pop Population) Population {
 	desiredOffspring := getDesiredOffspringCount(pop)
 	keepSpecies := make([]Species, 0)
 	for i, species := range pop.Species {
-		if i == 0 {
-			// Always leave at least 1 species alive
+		if i < pop.Cfg.MinSpecies {
+			// Always leave at least the required species alive
 			keepSpecies = append(keepSpecies, species)
 			continue
 		}
@@ -160,7 +166,7 @@ func getDesiredOffspringCount(pop Population) map[int]int {
 
 	desiredOffspring := make(map[int]int)
 	for i, species := range pop.Species {
-		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(len(pop.Genomes))))
+		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(pop.Cfg.PopulationSize)))
 		desiredOffspring[i] = offspringCount
 	}
 	return desiredOffspring

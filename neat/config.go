@@ -36,6 +36,7 @@ type Config struct {
 	WeightMutationPower          float64 // How much to mutate the weight. Calculated as connection.weight +/- (connection.weight*power).
 	WeightReplaceRate            float64 // How often to create a completely new weight, instead of mutating the existing one.
 	// Speciation
+	MinSpecies                   int     // Keep at least this number of species
 	SpeciesCompatExcessCoeff     float64 // How important are disjoint + excess genes when calculating species?
 	SpeciesCompatBiasDiffCoeff   float64 // How important are node biases when calculating species?
 	SpeciesCompatWeightDiffCoeff float64 // How important are connection weights when calculating species?
@@ -79,6 +80,7 @@ func DefaultConfig(layers ...int) Config {
 		WeightMutationPower:          .2,
 		WeightReplaceRate:            .01,
 
+		MinSpecies:                   4,
 		SpeciesCompatExcessCoeff:     1,
 		SpeciesCompatBiasDiffCoeff:   .5,
 		SpeciesCompatWeightDiffCoeff: .5,

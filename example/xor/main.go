@@ -25,23 +25,25 @@ func main() {
 
 	cfg.AddNodeMutationRate = .5
 	cfg.DeleteNodeMutationRate = .5
-	cfg.BiasMutationRate = .8
+	cfg.BiasMutationRate = .2
 	cfg.BiasMutationPower = .3
-	cfg.BiasReplaceRate = .1
+	cfg.BiasReplaceRate = .4
 
 	cfg.AddConnectionMutationRate = .5
 	cfg.DeleteConnectionMutationRate = .5
 	cfg.WeightMutationRate = .8
-	cfg.WeightMutationPower = .3
+	cfg.WeightMutationPower = .1
 	cfg.WeightReplaceRate = .1
 
 	cfg.SpeciesCompatExcessCoeff = 1
 	cfg.SpeciesCompatBiasDiffCoeff = .5
 	cfg.SpeciesCompatWeightDiffCoeff = .5
-	cfg.SpeciesCompatThreshold = 2
-	cfg.SpeciesStalenessThreshold = 20
+	cfg.SpeciesCompatThreshold = 4
+	cfg.SpeciesStalenessThreshold = 30
 	cfg.MateCrossoverRate = .5
 	cfg.MateBestRate = .5
+
+	cfg.TopGenomesFromSpeciesToFill = 2
 
 	pop, err := neat.GeneratePopulation(cfg)
 	if err != nil {
@@ -50,14 +52,22 @@ func main() {
 
 	solved := false
 	var generation int
-	for generation = 1; generation <= 1000; generation++ {
+	for generation = 1; generation <= 10000; generation++ {
 		pop = playGame(pop)
 		bestFitness := pop.BestGenomeFitness
+		bestNumNodes := pop.BestGenome.NumNodes()
+		bestNumConnections := pop.BestGenome.NumConnections()
+		popSize := len(pop.Genomes)
+		numSpecies := len(pop.Species)
 
 		fmt.Printf(`Generation %d
 BestFitness: %f
+BestNodes: %d
+BestConnections: %d
+PopSize: %d
+NumSpecies: %d
 -------------------------
-`, generation, bestFitness)
+`, generation, bestFitness, bestNumNodes, bestNumConnections, popSize, numSpecies)
 		if bestFitness >= 3.9 {
 			solved = true
 			break
@@ -116,7 +126,7 @@ func playGame(pop neat.Population) neat.Population {
 				state.SendInput() <- input
 				select {
 				case output := <-state.GetOutput():
-					fitness += fitnessFunc(answer, outputToAnswer(output))
+					fitness += fitnessFunc(answer, output[0])
 				case err := <-state.GetError():
 					fmt.Printf("failed to process: %s\n", err)
 				}
