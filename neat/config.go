@@ -28,12 +28,13 @@ type Config struct {
 	BiasMutationPower      float64 // How much to mutate the bias. Calculated as node.bias +/- (node.bias*power).
 	BiasReplaceRate        float64 // How often to create a completely new bias, instead of mutating the existing one.
 	// Connection configuration
-	AddConnectionMutationRate float64 // How often to add a connection.
-	MinWeight                 float64 // Min connection weight.
-	MaxWeight                 float64 // Max connection weight.
-	WeightMutationRate        float64 // How often to mutate connection weight.
-	WeightMutationPower       float64 // How much to mutate the weight. Calculated as connection.weight +/- (connection.weight*power).
-	WeightReplaceRate         float64 // How often to create a completely new weight, instead of mutating the existing one.
+	AddConnectionMutationRate    float64 // How often to add a connection.
+	DeleteConnectionMutationRate float64 // How often to delete a connection.
+	MinWeight                    float64 // Min connection weight.
+	MaxWeight                    float64 // Max connection weight.
+	WeightMutationRate           float64 // How often to mutate connection weight.
+	WeightMutationPower          float64 // How much to mutate the weight. Calculated as connection.weight +/- (connection.weight*power).
+	WeightReplaceRate            float64 // How often to create a completely new weight, instead of mutating the existing one.
 	// Speciation
 	SpeciesCompatExcessCoeff     float64 // How important are disjoint + excess genes when calculating species?
 	SpeciesCompatBiasDiffCoeff   float64 // How important are node biases when calculating species?
@@ -62,19 +63,21 @@ func DefaultConfig(layers ...int) Config {
 		OutputActivationFn:  network.Sigmoid,
 		HiddenActivationFns: network.ActivationRegistry.Names(),
 
-		AddNodeMutationRate: .2,
-		MinBias:             -30,
-		MaxBias:             30,
-		BiasMutationRate:    .8,
-		BiasMutationPower:   .2,
-		BiasReplaceRate:     .01,
+		AddNodeMutationRate:    .2,
+		DeleteNodeMutationRate: .2,
+		MinBias:                -30,
+		MaxBias:                30,
+		BiasMutationRate:       .8,
+		BiasMutationPower:      .2,
+		BiasReplaceRate:        .01,
 
-		AddConnectionMutationRate: .8,
-		MinWeight:                 -30,
-		MaxWeight:                 30,
-		WeightMutationRate:        .8,
-		WeightMutationPower:       .2,
-		WeightReplaceRate:         .01,
+		AddConnectionMutationRate:    .5,
+		DeleteConnectionMutationRate: .5,
+		MinWeight:                    -30,
+		MaxWeight:                    30,
+		WeightMutationRate:           .8,
+		WeightMutationPower:          .2,
+		WeightReplaceRate:            .01,
 
 		SpeciesCompatExcessCoeff:     1,
 		SpeciesCompatBiasDiffCoeff:   .5,

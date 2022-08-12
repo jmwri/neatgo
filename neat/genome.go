@@ -129,6 +129,7 @@ func MutateGenome(cfg Config, genome Genome) Genome {
 	genome = MutateAddNode(cfg, genome)
 	genome = MutateDeleteNode(cfg, genome)
 	genome = MutateAddConnection(cfg, genome)
+	genome = MutateDeleteConnection(cfg, genome)
 	return genome
 }
 

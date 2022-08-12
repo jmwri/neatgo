@@ -29,7 +29,8 @@ func main() {
 	cfg.BiasMutationPower = .3
 	cfg.BiasReplaceRate = .1
 
-	cfg.AddConnectionMutationRate = .2
+	cfg.AddConnectionMutationRate = .5
+	cfg.DeleteConnectionMutationRate = .5
 	cfg.WeightMutationRate = .8
 	cfg.WeightMutationPower = .3
 	cfg.WeightReplaceRate = .1
