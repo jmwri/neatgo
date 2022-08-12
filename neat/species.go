@@ -163,15 +163,19 @@ func getDesiredOffspringCount(pop Population) map[int]int {
 func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool {
 	excessAndDisjoint := countExcessAndDisjointGenes(genome, species.Representative)
 	averageWeightDiff := calculateAverageConnectionWeightDiff(genome, species.Representative)
+	averageBiasDiff := calculateAverageNodeBiasDiff(genome, species.Representative)
 
 	var largeGenomeNormaliser = (genome.NumLayers() + genome.NumNodes()) - 20
 	if largeGenomeNormaliser < 1 {
 		largeGenomeNormaliser = 1
 	}
 
+	excessAndDisjointDiff := pop.Cfg.SpeciesCompatExcessCoeff * float64(excessAndDisjoint) / float64(largeGenomeNormaliser)
+	weightDiff := pop.Cfg.SpeciesCompatWeightDiffCoeff * averageWeightDiff
+	biasDiff := pop.Cfg.SpeciesCompatBiasDiffCoeff * averageBiasDiff
+
 	// Lower means more similar
-	compatibility := (pop.Cfg.SpeciesCompatExcessCoeff * float64(excessAndDisjoint) / float64(largeGenomeNormaliser)) +
-		(pop.Cfg.SpeciesCompatWeightDiffCoeff * averageWeightDiff)
+	compatibility := excessAndDisjointDiff + weightDiff + biasDiff
 	return compatibility <= pop.Cfg.SpeciesCompatThreshold
 }
 
@@ -227,6 +231,38 @@ func calculateAverageConnectionWeightDiff(a, b Genome) float64 {
 		return 100
 	}
 	return totalWeightDiff / tot
+}
+
+func calculateAverageNodeBiasDiff(a, b Genome) float64 {
+	innovationNumCount := make(map[int]int)
+	innovationBiases := make(map[int]float64)
+	for _, layer := range a.Layers {
+		for _, node := range layer {
+			innovationNumCount[node.ID]++
+			innovationBiases[node.ID] = node.Bias
+		}
+	}
+	for _, layer := range b.Layers {
+		for _, node := range layer {
+			innovationNumCount[node.ID]++
+			innovationBiases[node.ID] -= node.Bias
+		}
+	}
+
+	tot := .0
+	totalBiasDiff := .0
+	for i, count := range innovationNumCount {
+		if count == 2 {
+			tot++
+			totalBiasDiff += math.Abs(innovationBiases[i])
+		}
+	}
+
+	// Avoid divide by zero
+	if tot == 0 {
+		return 100
+	}
+	return totalBiasDiff / tot
 }
 
 func GetOffspring(pop Population, species Species) Genome {

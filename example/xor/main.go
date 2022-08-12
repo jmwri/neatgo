@@ -31,8 +31,9 @@ func main() {
 	cfg.WeightReplaceRate = .1
 
 	cfg.SpeciesCompatExcessCoeff = 1
+	cfg.SpeciesCompatBiasDiffCoeff = .5
 	cfg.SpeciesCompatWeightDiffCoeff = .5
-	cfg.SpeciesCompatThreshold = 3
+	cfg.SpeciesCompatThreshold = 2
 	cfg.SpeciesStalenessThreshold = 20
 	cfg.MateCrossoverRate = .75
 	cfg.MateBestRate = .5
