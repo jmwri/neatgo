@@ -26,7 +26,7 @@ func MutateConnectionWeights(cfg Config, genome Genome) Genome {
 			}
 			weightAdjustment = weightAdjustment * (newWeight * cfg.WeightMutationPower)
 			newWeight += weightAdjustment
-			newWeight += util.RandomGaussian()
+			//newWeight += util.RandomGaussian()
 			if newWeight > cfg.MaxWeight {
 				newWeight = cfg.MaxWeight
 			} else if newWeight < cfg.MinWeight {

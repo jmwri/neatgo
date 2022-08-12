@@ -75,8 +75,7 @@ func RandomActivationFunction(choices ...ActivationFunctionName) ActivationFunct
 	if len(choices) == 0 {
 		choices = ActivationRegistry.Names()
 	}
-	randomSelection := util.IntBetween(0, len(choices))
-	return choices[randomSelection]
+	return util.RandSliceElement(choices)
 }
 
 const (

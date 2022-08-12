@@ -23,11 +23,15 @@ func main() {
 		network.Sigmoid,
 	}
 
-	cfg.AddNodeMutationRate = .05
+	cfg.AddNodeMutationRate = .5
+	cfg.DeleteNodeMutationRate = .5
+	cfg.BiasMutationRate = .8
+	cfg.BiasMutationPower = .3
+	cfg.BiasReplaceRate = .1
 
 	cfg.AddConnectionMutationRate = .2
 	cfg.WeightMutationRate = .8
-	cfg.WeightMutationPower = .1
+	cfg.WeightMutationPower = .3
 	cfg.WeightReplaceRate = .1
 
 	cfg.SpeciesCompatExcessCoeff = 1

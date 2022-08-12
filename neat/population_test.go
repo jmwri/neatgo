@@ -19,7 +19,7 @@ func TestRunGeneration(t *testing.T) {
 }
 
 func playGame(pop neat.Population) neat.Population {
-	for pop.Generation < 100 {
+	for pop.Generation < 10 {
 		clientStates := pop.States()
 		wg := sync.WaitGroup{}
 		wg.Add(len(clientStates))

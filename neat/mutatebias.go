@@ -27,7 +27,7 @@ func MutateNodeBiases(cfg Config, genome Genome) Genome {
 				}
 				biasAdjustment = biasAdjustment * (newBias * cfg.BiasMutationPower)
 				newBias += biasAdjustment
-				newBias += util.RandomGaussian()
+				//newBias += util.RandomGaussian()
 				if newBias > cfg.MaxBias {
 					newBias = cfg.MaxBias
 				} else if newBias < cfg.MinBias {

@@ -12,7 +12,13 @@ func FloatBetween(min, max float64) float64 {
 }
 
 func IntBetween(min, max int) int {
-	return min + rand.Intn(max-min)
+	if max < min {
+		panic("min must be smaller than max")
+	}
+	if min == max {
+		return min
+	}
+	return min + rand.Intn((max+1)-min)
 }
 
 func RandomGaussian() float64 {

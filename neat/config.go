@@ -20,12 +20,13 @@ type Config struct {
 	OutputActivationFn  network.ActivationFunctionName
 	HiddenActivationFns []network.ActivationFunctionName // Activation functions available for hidden nodes. Default is all of them.
 	// Node configuration
-	AddNodeMutationRate float64 // How often to add a node.
-	MinBias             float64 // Min node bias.
-	MaxBias             float64 // Max node bias.
-	BiasMutationRate    float64 // How often to mutate nodes bias.
-	BiasMutationPower   float64 // How much to mutate the bias. Calculated as node.bias +/- (node.bias*power).
-	BiasReplaceRate     float64 // How often to create a completely new bias, instead of mutating the existing one.
+	AddNodeMutationRate    float64 // How often to add a node.
+	DeleteNodeMutationRate float64 // How often to delete a node.
+	MinBias                float64 // Min node bias.
+	MaxBias                float64 // Max node bias.
+	BiasMutationRate       float64 // How often to mutate nodes bias.
+	BiasMutationPower      float64 // How much to mutate the bias. Calculated as node.bias +/- (node.bias*power).
+	BiasReplaceRate        float64 // How often to create a completely new bias, instead of mutating the existing one.
 	// Connection configuration
 	AddConnectionMutationRate float64 // How often to add a connection.
 	MinWeight                 float64 // Min connection weight.

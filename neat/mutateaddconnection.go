@@ -13,10 +13,11 @@ func MutateAddConnection(cfg Config, genome Genome) Genome {
 	}
 
 	potentialConnections := getPotentialConnections(genome)
+	// No potential connection, so no mutation.
 	if len(potentialConnections) == 0 {
 		return genome
 	}
-	connectionToAdd := potentialConnections[util.IntBetween(0, len(potentialConnections))]
+	connectionToAdd := util.RandSliceElement(potentialConnections)
 	connection := network.NewConnection(
 		cfg.IDProvider.Next(),
 		connectionToAdd.from,

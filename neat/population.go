@@ -240,12 +240,10 @@ func Evolve(pop Population) Population {
 
 	// Once processed all species, if we have some population size left over, crossover the best genomes of all species.
 	// Don't add these genomes to any species.
-	if len(newGenomes) < pop.Cfg.PopulationSize {
+	if len(newGenomes) < pop.Cfg.PopulationSize && len(topSpeciesGenomes) != 0 {
 		for len(newGenomes) < pop.Cfg.PopulationSize {
-			aTopIndex := util.IntBetween(0, len(topSpeciesGenomes))
-			bTopIndex := util.IntBetween(0, len(topSpeciesGenomes))
-			a := topSpeciesGenomes[aTopIndex]
-			b := topSpeciesGenomes[bTopIndex]
+			a := util.RandSliceElement(topSpeciesGenomes)
+			b := util.RandSliceElement(topSpeciesGenomes)
 			if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
 				a, b = b, a
 			}
