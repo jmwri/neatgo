@@ -43,7 +43,7 @@ func main() {
 	cfg.MateCrossoverRate = .5
 	cfg.MateBestRate = .5
 
-	cfg.TopGenomesFromSpeciesToFill = 2
+	cfg.TopGenomesFromSpeciesToFill = 4
 
 	pop, err := neat.GeneratePopulation(cfg)
 	if err != nil {
@@ -52,7 +52,7 @@ func main() {
 
 	solved := false
 	var generation int
-	for generation = 1; generation <= 10000; generation++ {
+	for generation = 1; generation <= 500; generation++ {
 		pop = playGame(pop)
 		bestFitness := pop.BestGenomeFitness
 		bestNumNodes := pop.BestGenome.NumNodes()
