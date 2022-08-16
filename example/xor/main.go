@@ -39,7 +39,7 @@ func main() {
 	cfg.SpeciesCompatBiasDiffCoeff = .5
 	cfg.SpeciesCompatWeightDiffCoeff = .5
 	cfg.SpeciesCompatThreshold = 4
-	cfg.SpeciesStalenessThreshold = 30
+	cfg.SpeciesStalenessThreshold = 15
 	cfg.MateCrossoverRate = .5
 	cfg.MateBestRate = .5
 

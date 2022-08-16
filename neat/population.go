@@ -215,21 +215,35 @@ func Evolve(pop Population) Population {
 		if !ok {
 			continue
 		}
+		if numOffspring < pop.Cfg.MinSpeciesSize {
+			numOffspring = pop.Cfg.MinSpeciesSize
+		}
 
 		speciesGenomes := make([]int, 0)
 
-		// Add the best genome of each species without mutation
-		oldGenomeIndex := species.Genomes[0]
-		newGenomeIndex := len(newGenomes)
-		newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
-		newFitness = append(newFitness, pop.GenomeFitness[oldGenomeIndex])
-		speciesGenomes = append(speciesGenomes, newGenomeIndex)
+		elitism := pop.Cfg.Elitism
+		// Should only happen on the first run... Don't try to carry over more genomes than exist.
+		if elitism > len(species.Genomes) {
+			elitism = len(species.Genomes)
+		}
 
-		// We create numOffspring-1 children here, as we've already carried over the best
-		for j := 1; j < numOffspring; j++ {
+		// Add elite genomes from each species with no mutation.
+		for j := 0; j < elitism; j++ {
+			oldGenomeIndex := species.Genomes[j]
+			newGenomeIndex := len(newGenomes)
+			newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
+			newFitness = append(newFitness, pop.GenomeFitness[oldGenomeIndex])
+			speciesGenomes = append(speciesGenomes, newGenomeIndex)
+		}
+
+		// Fill the remaining allowance with mutated offspring.
+		for j := elitism; j < numOffspring; j++ {
+			if len(pop.Species[i].Genomes) == 0 {
+				continue
+			}
 			// Get offspring from the species
 			offspring := GetOffspring(pop, pop.Species[i])
-			newGenomeIndex = len(newGenomes)
+			newGenomeIndex := len(newGenomes)
 			newGenomes = append(newGenomes, offspring)
 			newFitness = append(newFitness, 0)
 			speciesGenomes = append(speciesGenomes, newGenomeIndex)

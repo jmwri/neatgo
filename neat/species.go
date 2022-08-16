@@ -45,7 +45,7 @@ func Speciate(pop Population) Population {
 	}
 	for i, species := range pop.Species {
 		oldBestFitness := species.BestFitness
-		oldAvgFitness := species.AvgFitness
+		//oldAvgFitness := species.AvgFitness
 		bestFitness := 0.0
 		totalFitness := 0.0
 		for _, genome := range species.Genomes {
@@ -60,8 +60,8 @@ func Speciate(pop Population) Population {
 
 		// If the species didn't get a new max, or increased average, then mark it as stale.
 		bestImproved := pop.Species[i].BestFitness > oldBestFitness
-		avgImproved := pop.Species[i].AvgFitness > oldAvgFitness
-		improved := bestImproved || avgImproved
+		//avgImproved := pop.Species[i].AvgFitness > oldAvgFitness
+		improved := bestImproved
 		if !improved {
 			pop.Species[i].Staleness++
 		} else {
@@ -88,24 +88,27 @@ func RankSpecies(pop Population) Population {
 }
 
 func CullSpecies(pop Population) Population {
+	// Remove the bottom X genomes from each species
 	for i, species := range pop.Species {
-		if len(species.Genomes) <= 2 {
+		if len(species.Genomes) == 0 {
 			continue
 		}
-		removeFromIndex := len(species.Genomes) / 2
-		pop.Species[i].Genomes = pop.Species[i].Genomes[removeFromIndex:]
+		ratio := math.Ceil(pop.Cfg.SurvivalThreshold * float64(len(species.Genomes)))
+		ratioIndex := int(ratio)
+		// Keep elements from 0 - ratioIndex
+		pop.Species[i].Genomes = pop.Species[i].Genomes[:ratioIndex]
 	}
 	return pop
 }
 
 func FitnessSharing(pop Population) Population {
 	for i, species := range pop.Species {
-		avgFitness := 0.0
+		fitnessSum := 0.0
 		for _, genomeIndex := range species.Genomes {
 			pop.GenomeFitness[genomeIndex] = pop.GenomeFitness[genomeIndex] / float64(len(species.Genomes))
-			avgFitness += pop.GenomeFitness[genomeIndex]
+			fitnessSum += pop.GenomeFitness[genomeIndex]
 		}
-		pop.Species[i].AvgFitness = avgFitness / float64(len(species.Genomes))
+		pop.Species[i].AvgFitness = fitnessSum / float64(len(species.Genomes))
 	}
 	return pop
 }
@@ -113,20 +116,16 @@ func FitnessSharing(pop Population) Population {
 func KillStaleSpecies(pop Population) Population {
 	keepSpecies := make([]Species, 0)
 	removedSpecies := make([]Species, 0)
-	for _, species := range pop.Species {
+	for i, species := range pop.Species {
+		if i < pop.Cfg.SpeciesElitism {
+			keepSpecies = append(keepSpecies, species)
+			continue
+		}
 		if species.Staleness < pop.Cfg.SpeciesStalenessThreshold {
 			keepSpecies = append(keepSpecies, species)
 		} else {
 			removedSpecies = append(removedSpecies, species)
 		}
-	}
-
-	// If we're killing too many species, add some stale ones back in.
-	for i := len(keepSpecies); i < pop.Cfg.MinSpecies; i++ {
-		if i >= len(removedSpecies) {
-			break
-		}
-		keepSpecies = append(keepSpecies, removedSpecies[i])
 	}
 
 	pop.Species = keepSpecies
@@ -138,7 +137,7 @@ func KillBadSpecies(pop Population) Population {
 	desiredOffspring := getDesiredOffspringCount(pop)
 	keepSpecies := make([]Species, 0)
 	for i, species := range pop.Species {
-		if i < pop.Cfg.MinSpecies {
+		if i < pop.Cfg.SpeciesElitism {
 			// Always leave at least the required species alive
 			keepSpecies = append(keepSpecies, species)
 			continue
@@ -147,7 +146,7 @@ func KillBadSpecies(pop Population) Population {
 		if !ok {
 			continue
 		}
-		if numOffspring < 1 {
+		if numOffspring < pop.Cfg.MinSpeciesSize {
 			continue
 		}
 		keepSpecies = append(keepSpecies, species)
@@ -281,8 +280,8 @@ func GetOffspring(pop Population, species Species) Genome {
 	performCrossover := util.FloatBetween(0, 1) < pop.Cfg.MateCrossoverRate
 	var baby Genome
 	if performCrossover {
-		a := getRandomSpeciesOffspring(pop, species)
-		b := getRandomSpeciesOffspring(pop, species)
+		a := getSpeciesGenomeForCrossover(pop, species)
+		b := getSpeciesGenomeForCrossover(pop, species)
 		if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
 			a, b = b, a
 		}
@@ -290,13 +289,13 @@ func GetOffspring(pop Population, species Species) Genome {
 		bGenome := pop.Genomes[b]
 		baby = Crossover(pop.Cfg, aGenome, bGenome)
 	} else {
-		randomGenome := getRandomSpeciesOffspring(pop, species)
+		randomGenome := getSpeciesGenomeForCrossover(pop, species)
 		baby = CopyGenome(pop.Genomes[randomGenome])
 	}
 	return MutateGenome(pop.Cfg, baby)
 }
 
-func getRandomSpeciesOffspring(pop Population, species Species) int {
+func getSpeciesGenomeForCrossover(pop Population, species Species) int {
 	fitnessSum := 0.0
 	for _, genomeID := range species.Genomes {
 		fitnessSum += pop.GenomeFitness[genomeID]
