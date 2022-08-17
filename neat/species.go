@@ -26,6 +26,9 @@ type Species struct {
 
 func Speciate(pop Population) Population {
 	for i := range pop.Species {
+		// Set species representative to random member
+		newRepresentativeIndex := util.RandSliceElement(pop.Species[i].Genomes)
+		pop.Species[i].Representative = pop.Genomes[newRepresentativeIndex]
 		pop.Species[i].Genomes = make([]int, 0)
 	}
 	for i, genome := range pop.Genomes {
