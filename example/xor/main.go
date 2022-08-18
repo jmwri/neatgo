@@ -25,9 +25,9 @@ func main() {
 
 	cfg.AddNodeMutationRate = .2
 	cfg.DeleteNodeMutationRate = .3
-	cfg.BiasMutationRate = .2
-	cfg.BiasMutationPower = .3
-	cfg.BiasReplaceRate = .4
+	cfg.BiasMutationRate = .1
+	cfg.BiasMutationPower = .1
+	cfg.BiasReplaceRate = .1
 
 	cfg.AddConnectionMutationRate = .5
 	cfg.DeleteConnectionMutationRate = .2
@@ -38,9 +38,9 @@ func main() {
 	cfg.SpeciesCompatExcessCoeff = 1
 	cfg.SpeciesCompatBiasDiffCoeff = .5
 	cfg.SpeciesCompatWeightDiffCoeff = .5
-	cfg.SpeciesCompatThreshold = 4.1
+	cfg.SpeciesCompatThreshold = 4.5
 	cfg.SpeciesStalenessThreshold = 15
-	cfg.MateCrossoverRate = .5
+	cfg.MateCrossoverRate = .6
 	cfg.MateBestRate = .5
 
 	cfg.TopGenomesFromSpeciesToFill = 4

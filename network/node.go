@@ -1,12 +1,12 @@
 package network
 
-type NodeType int
+type NodeType string
 
 const (
-	Hidden NodeType = iota
-	Bias
-	Input
-	Output
+	Hidden NodeType = "hidden"
+	Bias            = "bias"
+	Input           = "input"
+	Output          = "output"
 )
 
 func NewNode(id int, nodeType NodeType, bias float64, activationFn ActivationFunctionName) Node {
