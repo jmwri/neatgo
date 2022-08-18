@@ -25,17 +25,24 @@ type Species struct {
 }
 
 func Speciate(pop Population) Population {
-	for i := range pop.Species {
+	newSpecies := make([]Species, 0)
+	for i, species := range pop.Species {
+		if len(species.Genomes) == 0 {
+			// Remove extinct species
+			continue
+		}
 		// Set species representative to random member
 		newRepresentativeIndex := util.RandSliceElement(pop.Species[i].Genomes)
-		pop.Species[i].Representative = pop.Genomes[newRepresentativeIndex]
-		pop.Species[i].Genomes = make([]int, 0)
+		species.Representative = pop.Genomes[newRepresentativeIndex]
+		// Remove all members from species
+		species.Genomes = make([]int, 0)
+		newSpecies = append(newSpecies, species)
 	}
 	for i, genome := range pop.Genomes {
 		foundSpecies := false
-		for j, species := range pop.Species {
+		for j, species := range newSpecies {
 			if CompatibleWithSpecies(pop, species, genome) {
-				pop.Species[j].Genomes = append(pop.Species[j].Genomes, i)
+				newSpecies[j].Genomes = append(newSpecies[j].Genomes, i)
 				foundSpecies = true
 				break
 			}
@@ -43,10 +50,16 @@ func Speciate(pop Population) Population {
 		if !foundSpecies {
 			species := NewSpecies(genome)
 			species.Genomes = append(species.Genomes, i)
-			pop.Species = append(pop.Species, species)
+			newSpecies = append(newSpecies, species)
 		}
 	}
-	for i, species := range pop.Species {
+	extinctSpeciesIndices := make([]int, 0)
+	for i, species := range newSpecies {
+		if len(species.Genomes) == 0 {
+			// Remove extinct species
+			extinctSpeciesIndices = append(extinctSpeciesIndices, i)
+			continue
+		}
 		oldBestFitness := species.BestFitness
 		//oldAvgFitness := species.AvgFitness
 		bestFitness := 0.0
@@ -58,19 +71,23 @@ func Speciate(pop Population) Population {
 				bestFitness = genomeFitness
 			}
 		}
-		pop.Species[i].AvgFitness = totalFitness / float64(len(species.Genomes))
-		pop.Species[i].BestFitness = bestFitness
+		newSpecies[i].AvgFitness = totalFitness / float64(len(species.Genomes))
+		newSpecies[i].BestFitness = bestFitness
 
 		// If the species didn't get a new max, or increased average, then mark it as stale.
-		bestImproved := pop.Species[i].BestFitness > oldBestFitness
-		//avgImproved := pop.Species[i].AvgFitness > oldAvgFitness
+		bestImproved := newSpecies[i].BestFitness > oldBestFitness
+		//avgImproved := newSpecies[i].AvgFitness > oldAvgFitness
 		improved := bestImproved
 		if !improved {
-			pop.Species[i].Staleness++
+			newSpecies[i].Staleness++
 		} else {
-			pop.Species[i].Staleness = 0
+			newSpecies[i].Staleness = 0
 		}
 	}
+	for i := len(extinctSpeciesIndices) - 1; i >= 0; i-- {
+		newSpecies = util.RemoveSliceIndex(newSpecies, i)
+	}
+	pop.Species = newSpecies
 	return pop
 }
 
