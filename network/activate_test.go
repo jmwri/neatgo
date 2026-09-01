@@ -1,7 +1,7 @@
 package network_test
 
 import (
-	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/v2/network"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

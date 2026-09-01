@@ -1,42 +1,26 @@
 package neat
 
-import (
-	"github.com/jmwri/neatgo/util"
-)
+// MutateNodeBiases returns a copy of genome with perturbed node biases.
+func (b *Breeder) MutateNodeBiases(genome Genome) Genome {
+	return b.mutateNodeBiases(CopyGenome(genome))
+}
 
-func MutateNodeBiases(cfg Config, genome Genome) Genome {
-	genome = CopyGenome(genome)
-	for j, layer := range genome.Layers {
-		for i, node := range layer {
-			seed := cfg.RandFloatProvider(0, 1)
-			if seed > cfg.BiasMutationRate {
+func (b *Breeder) mutateNodeBiases(genome Genome) Genome {
+	cfg, rng := b.cfg, b.rng
+	for i, layer := range genome.Layers {
+		for j, node := range layer {
+			// Input and bias nodes have no learnable bias.
+			if !mutableNode(node) {
 				continue
 			}
-
-			// Generate a completely new bias, or modify it slightly
-			seed = cfg.RandFloatProvider(0, 1)
-			newBias := node.Bias
-			if seed <= cfg.BiasReplaceRate {
-				previous := newBias
-				for newBias == previous {
-					newBias = cfg.RandFloatProvider(cfg.MinBias, cfg.MaxBias)
-				}
-			} else {
-				biasAdjustment := -1.0
-				isPositiveAdjustment := util.FloatBetween(0, 1) < .5
-				if isPositiveAdjustment {
-					biasAdjustment = 1
-				}
-				biasAdjustment = biasAdjustment * (newBias * cfg.BiasMutationPower)
-				newBias += biasAdjustment
-				//newBias += util.RandomGaussian()
-				if newBias > cfg.MaxBias {
-					newBias = cfg.MaxBias
-				} else if newBias < cfg.MinBias {
-					newBias = cfg.MinBias
-				}
+			if !cfg.Chance(rng, cfg.BiasMutationRate) {
+				continue
 			}
-			genome.Layers[j][i].Bias = newBias
+			if cfg.Chance(rng, cfg.BiasReplaceRate) {
+				genome.Layers[i][j].Bias = cfg.RandBias(rng)
+				continue
+			}
+			genome.Layers[i][j].Bias = cfg.PerturbBias(rng, node.Bias)
 		}
 	}
 	return genome

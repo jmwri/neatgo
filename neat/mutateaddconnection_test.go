@@ -1,8 +1,8 @@
 package neat_test
 
 import (
-	"github.com/jmwri/neatgo/neat"
-	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/v2/neat"
+	"github.com/jmwri/neatgo/v2/network"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -10,9 +10,10 @@ import (
 func TestMutateAddConnection_NoChange(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1)
 	cfg.AddConnectionMutationRate = 0
-	genome, err := neat.GenerateGenome(cfg)
+	breeder := neat.NewBreeder(cfg, neat.NewRand(1), nil)
+	genome, err := breeder.NewGenome()
 	assert.NoError(t, err, "unexpected error when generating genome")
-	actual := neat.MutateAddConnection(cfg, genome)
+	actual := breeder.MutateAddConnection(genome)
 	assert.Equal(t, genome.NumLayers(), actual.NumLayers())
 	assert.Equal(t, genome.NumNodes(), actual.NumNodes())
 	assert.Equal(t, genome.NumConnections(), actual.NumConnections())
@@ -21,9 +22,10 @@ func TestMutateAddConnection_NoChange(t *testing.T) {
 func TestMutateAddConnection_NoChangeWhenFullyConnected(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1)
 	cfg.AddConnectionMutationRate = 1
-	genome, err := neat.GenerateGenome(cfg)
+	breeder := neat.NewBreeder(cfg, neat.NewRand(1), nil)
+	genome, err := breeder.NewGenome()
 	assert.NoError(t, err, "unexpected error when generating genome")
-	actual := neat.MutateAddConnection(cfg, genome)
+	actual := breeder.MutateAddConnection(genome)
 	assert.Equal(t, genome.NumLayers(), actual.NumLayers())
 	assert.Equal(t, genome.NumNodes(), actual.NumNodes())
 	assert.Equal(t, genome.NumConnections(), actual.NumConnections())
@@ -32,6 +34,7 @@ func TestMutateAddConnection_NoChangeWhenFullyConnected(t *testing.T) {
 func TestMutateAddConnection_FullChange(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 2, 2)
 	cfg.AddConnectionMutationRate = 1
+	breeder := neat.NewBreeder(cfg, neat.NewRand(1), nil)
 
 	layers := [][]network.Node{
 		{
@@ -101,20 +104,20 @@ func TestMutateAddConnection_FullChange(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	cfg.IDProvider.SetCurrent(9)
+	breeder.Innovations().SetCurrentID(9)
 
 	genome := neat.NewGenome(layers, connections)
-	// added1/2 should add connection between nodes 2>5 and 3>4. added3 should have no effect as it is fully connected.
-	added1 := neat.MutateAddConnection(cfg, genome)
-	added2 := neat.MutateAddConnection(cfg, added1)
-	added3 := neat.MutateAddConnection(cfg, added2)
-	assert.Equal(t, genome.NumLayers(), added1.NumLayers())
-	assert.Equal(t, genome.NumNodes(), added1.NumNodes())
-	assert.Equal(t, genome.NumConnections()+1, added1.NumConnections())
-	assert.Equal(t, genome.NumLayers(), added2.NumLayers())
-	assert.Equal(t, genome.NumNodes(), added2.NumNodes())
-	assert.Equal(t, genome.NumConnections()+2, added2.NumConnections())
-	assert.Equal(t, genome.NumLayers(), added3.NumLayers())
-	assert.Equal(t, genome.NumNodes(), added3.NumNodes())
-	assert.Equal(t, genome.NumConnections()+2, added3.NumConnections())
+	// Four connections are missing and may be added without creating a cycle:
+	// the skip connections 1>4 and 1>5, plus 2>5 and 3>4. Once all four exist
+	// the genome is saturated and further mutations are no-ops.
+	added := genome
+	for i := 1; i <= 4; i++ {
+		added = breeder.MutateAddConnection(added)
+		assert.Equal(t, genome.NumLayers(), added.NumLayers())
+		assert.Equal(t, genome.NumNodes(), added.NumNodes())
+		assert.Equal(t, genome.NumConnections()+i, added.NumConnections())
+	}
+
+	saturated := breeder.MutateAddConnection(added)
+	assert.Equal(t, added.NumConnections(), saturated.NumConnections(), "no connection left to add")
 }

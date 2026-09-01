@@ -1,8 +1,9 @@
 package util_test
 
 import (
-	"github.com/jmwri/neatgo/util"
+	"github.com/jmwri/neatgo/v2/internal/util"
 	"github.com/stretchr/testify/assert"
+	"math/rand/v2"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func TestRandSliceElement(t *testing.T) {
 	seenMap := make(map[int]int)
 
 	for i := 1; i < 100; i++ {
-		choice := util.RandSliceElement(s)
+		choice := util.RandSliceElement(rand.New(rand.NewPCG(1, 2)), s)
 		seenMap[choice] += 1
 	}
 

@@ -1,8 +1,8 @@
 package neat_test
 
 import (
-	"github.com/jmwri/neatgo/neat"
-	"github.com/jmwri/neatgo/network"
+	"github.com/jmwri/neatgo/v2/neat"
+	"github.com/jmwri/neatgo/v2/network"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -10,9 +10,10 @@ import (
 func TestMutateDeleteNode_NoChange(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1)
 	cfg.DeleteNodeMutationRate = 0
-	genome, err := neat.GenerateGenome(cfg)
+	breeder := neat.NewBreeder(cfg, neat.NewRand(1), nil)
+	genome, err := breeder.NewGenome()
 	assert.NoError(t, err, "unexpected error when generating genome")
-	actual := neat.MutateDeleteNode(cfg, genome)
+	actual := breeder.MutateDeleteNode(genome)
 	assert.Equal(t, genome.NumLayers(), actual.NumLayers())
 	assert.Equal(t, genome.NumNodes(), actual.NumNodes())
 	assert.Equal(t, genome.NumConnections(), actual.NumConnections())
@@ -21,6 +22,7 @@ func TestMutateDeleteNode_NoChange(t *testing.T) {
 func TestMutateDeleteNode_NodeDeleted(t *testing.T) {
 	cfg := neat.DefaultConfig(1, 1, 1)
 	cfg.DeleteNodeMutationRate = 1
+	breeder := neat.NewBreeder(cfg, neat.NewRand(1), nil)
 
 	layers := [][]network.Node{
 		{
@@ -64,10 +66,10 @@ func TestMutateDeleteNode_NodeDeleted(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	cfg.IDProvider.SetCurrent(3)
+	breeder.Innovations().SetCurrentID(3)
 
 	genome := neat.NewGenome(layers, connections)
-	actual := neat.MutateDeleteNode(cfg, genome)
+	actual := breeder.MutateDeleteNode(genome)
 	assert.Equal(t, genome.NumLayers()-1, actual.NumLayers())
 	assert.Equal(t, genome.NumNodes()-1, actual.NumNodes())
 	assert.Equal(t, genome.NumConnections()-2, actual.NumConnections())

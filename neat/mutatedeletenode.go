@@ -1,30 +1,33 @@
 package neat
 
 import (
-	"github.com/jmwri/neatgo/network"
-	"github.com/jmwri/neatgo/util"
-	"sort"
+	"github.com/jmwri/neatgo/v2/internal/util"
+	"github.com/jmwri/neatgo/v2/network"
 )
 
-func MutateDeleteNode(cfg Config, genome Genome) Genome {
-	genome = CopyGenome(genome)
-	seed := cfg.RandFloatProvider(0, 1)
-	if seed > cfg.DeleteNodeMutationRate {
+// MutateDeleteNode returns a copy of genome with a hidden node removed.
+func (b *Breeder) MutateDeleteNode(genome Genome) Genome {
+	return b.mutateDeleteNode(CopyGenome(genome))
+}
+
+func (b *Breeder) mutateDeleteNode(genome Genome) Genome {
+	cfg, rng := b.cfg, b.rng
+	if !cfg.Chance(rng, cfg.DeleteNodeMutationRate) {
 		return genome
 	}
 
-	nodeToDelete := getLayerIndicesForNodeDeletion(genome)
+	nodeToDelete := getLayerIndicesForNodeDeletion(rng, genome)
 	if nodeToDelete.layer == -1 || nodeToDelete.nodeIndex == -1 {
 		return genome
 	}
 
 	removeNodeID := genome.Layers[nodeToDelete.layer][nodeToDelete.nodeIndex].ID
 
-	// Remove the node from the layer.
-	genome.Layers[nodeToDelete.layer] = util.RemoveSliceIndex(genome.Layers[nodeToDelete.layer], nodeToDelete.nodeIndex)
+	// Remove the node from the layer, preserving the order of its neighbours.
+	genome.Layers[nodeToDelete.layer] = util.RemoveSliceIndexOrdered(genome.Layers[nodeToDelete.layer], nodeToDelete.nodeIndex)
 
 	// Rebuild all layers, excluding any empty ones.
-	newLayers := make(Layers, 0)
+	newLayers := make(Layers, 0, len(genome.Layers))
 	for _, layer := range genome.Layers {
 		if len(layer) == 0 {
 			continue
@@ -33,23 +36,16 @@ func MutateDeleteNode(cfg Config, genome Genome) Genome {
 	}
 	genome.Layers = newLayers
 
-	// Gather all connections to/from the node
-	removeConnectionIndices := make([]int, 0)
-	for i, connection := range genome.Connections {
+	// Drop every connection to or from the node. Leaving one behind would
+	// create a dangling gene that references a node the network no longer has.
+	keptConnections := make([]network.Connection, 0, len(genome.Connections))
+	for _, connection := range genome.Connections {
 		if connection.To == removeNodeID || connection.From == removeNodeID {
-			removeConnectionIndices = append(removeConnectionIndices, i)
+			continue
 		}
+		keptConnections = append(keptConnections, connection)
 	}
-
-	// Sort from highest to lowest, so when removing we don't modify any of the other indices
-	sort.Slice(removeConnectionIndices, func(i, j int) bool {
-		return removeConnectionIndices[i] > removeConnectionIndices[j]
-	})
-
-	// Remove each connection
-	for _, connectionIndex := range removeConnectionIndices {
-		genome.Connections = util.RemoveSliceIndex(genome.Connections, connectionIndex)
-	}
+	genome.Connections = keptConnections
 
 	return genome
 }
@@ -59,9 +55,7 @@ type nodeLayerIndices struct {
 	nodeIndex int
 }
 
-func getLayerIndicesForNodeDeletion(genome Genome) nodeLayerIndices {
-	// Build slice of NodeIDs to process in order.
-	// Shuffle the slice.
+func getLayerIndicesForNodeDeletion(rng *Rand, genome Genome) nodeLayerIndices {
 	nodesLayerIndices := make([]nodeLayerIndices, 0)
 	for i, layer := range genome.Layers {
 		for j, node := range layer {
@@ -77,8 +71,8 @@ func getLayerIndicesForNodeDeletion(genome Genome) nodeLayerIndices {
 
 	// No nodes we can remove, so no mutation.
 	if len(nodesLayerIndices) == 0 {
-		return nodeLayerIndices{layer: -1}
+		return nodeLayerIndices{layer: -1, nodeIndex: -1}
 	}
 
-	return util.RandSliceElement(nodesLayerIndices)
+	return util.RandSliceElement(rng, nodesLayerIndices)
 }

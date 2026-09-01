@@ -1,15 +1,16 @@
 package neat
 
 import (
-	"github.com/jmwri/neatgo/util"
 	"math"
 	"sort"
+
+	"github.com/jmwri/neatgo/v2/internal/util"
 )
 
 func NewSpecies(representative Genome) Species {
 	return Species{
 		AvgFitness:     .0,
-		BestFitness:    .0,
+		BestFitness:    math.Inf(-1),
 		Genomes:        make([]int, 0),
 		Representative: representative,
 		Staleness:      0,
@@ -17,315 +18,348 @@ func NewSpecies(representative Genome) Species {
 }
 
 type Species struct {
-	AvgFitness     float64
-	BestFitness    float64
-	Genomes        []int
-	Representative Genome
-	Staleness      int
+	// AvgFitness is the mean raw fitness of the species' members.
+	AvgFitness float64
+	// BestFitness is the highest raw fitness in the species.
+	BestFitness float64
+	// AdjustedFitness is the mean fitness of the species' members after
+	// fitness sharing, and is what offspring are allocated in proportion to.
+	AdjustedFitness float64
+	Genomes         []int
+	Representative  Genome
+	Staleness       int
 }
 
+// Speciate assigns every genome in the population to a species.
+//
+// Each surviving species keeps a representative drawn from its previous
+// members; genomes join the first species whose representative they are
+// compatible with, and found a new species otherwise.
 func Speciate(pop Population) Population {
-	newSpecies := make([]Species, 0)
-	for i, species := range pop.Species {
-		if len(species.Genomes) == 0 {
-			// Remove extinct species
+	rng := pop.Breeder.rng
+	species := make([]Species, 0, len(pop.Species))
+	for _, existing := range pop.Species {
+		if len(existing.Genomes) == 0 {
+			// The species has no members to draw a representative from, so it
+			// is extinct.
 			continue
 		}
-		// Set species representative to random member
-		newRepresentativeIndex := util.RandSliceElement(pop.Species[i].Genomes)
-		species.Representative = pop.Genomes[newRepresentativeIndex]
-		// Remove all members from species
-		species.Genomes = make([]int, 0)
-		newSpecies = append(newSpecies, species)
+		// Set species representative to a random member of the generation that
+		// has just been evaluated, then clear the membership list.
+		existing.Representative = pop.Genomes[util.RandSliceElement(rng, existing.Genomes)]
+		existing.Genomes = make([]int, 0)
+		species = append(species, existing)
 	}
+
+	// Index every genome and every representative once, rather than rebuilding
+	// a lookup table inside each of the thousands of pairwise comparisons
+	// below.
+	genomeIndexes := make([]geneIndex, len(pop.Genomes))
 	for i, genome := range pop.Genomes {
-		foundSpecies := false
-		for j, species := range newSpecies {
-			if CompatibleWithSpecies(pop, species, genome) {
-				newSpecies[j].Genomes = append(newSpecies[j].Genomes, i)
-				foundSpecies = true
+		genomeIndexes[i] = newGeneIndex(genome)
+	}
+	representatives := make([]geneIndex, len(species))
+	for i := range species {
+		representatives[i] = newGeneIndex(species[i].Representative)
+	}
+
+	for i, genome := range pop.Genomes {
+		found := false
+		for j := range species {
+			if compatibility(pop.Cfg, genomeIndexes[i], representatives[j]) <= pop.Cfg.SpeciesCompatThreshold {
+				species[j].Genomes = append(species[j].Genomes, i)
+				found = true
 				break
 			}
 		}
-		if !foundSpecies {
-			species := NewSpecies(genome)
-			species.Genomes = append(species.Genomes, i)
-			newSpecies = append(newSpecies, species)
+		if !found {
+			newSpecies := NewSpecies(genome)
+			newSpecies.Genomes = append(newSpecies.Genomes, i)
+			species = append(species, newSpecies)
+			representatives = append(representatives, genomeIndexes[i])
 		}
 	}
-	extinctSpeciesIndices := make([]int, 0)
-	for i, species := range newSpecies {
-		if len(species.Genomes) == 0 {
-			// Remove extinct species
-			extinctSpeciesIndices = append(extinctSpeciesIndices, i)
+
+	// Drop any carried-over species that attracted no members this generation,
+	// then refresh each survivor's fitness statistics and staleness.
+	surviving := make([]Species, 0, len(species))
+	for _, s := range species {
+		if len(s.Genomes) == 0 {
 			continue
 		}
-		oldBestFitness := species.BestFitness
-		//oldAvgFitness := species.AvgFitness
-		bestFitness := 0.0
+
+		bestFitness := math.Inf(-1)
 		totalFitness := 0.0
-		for _, genome := range species.Genomes {
-			genomeFitness := pop.GenomeFitness[genome]
-			totalFitness += genomeFitness
-			if genomeFitness > bestFitness {
-				bestFitness = genomeFitness
+		for _, genomeIndex := range s.Genomes {
+			fitness := pop.GenomeFitness[genomeIndex]
+			totalFitness += fitness
+			if fitness > bestFitness {
+				bestFitness = fitness
 			}
 		}
-		newSpecies[i].AvgFitness = totalFitness / float64(len(species.Genomes))
-		newSpecies[i].BestFitness = bestFitness
 
-		// If the species didn't get a new max, or increased average, then mark it as stale.
-		bestImproved := newSpecies[i].BestFitness > oldBestFitness
-		//avgImproved := newSpecies[i].AvgFitness > oldAvgFitness
-		improved := bestImproved
-		if !improved {
-			newSpecies[i].Staleness++
+		// A species is stale while its best member fails to beat the best it
+		// has ever produced.
+		if bestFitness > s.BestFitness {
+			s.BestFitness = bestFitness
+			s.Staleness = 0
 		} else {
-			newSpecies[i].Staleness = 0
+			s.Staleness++
 		}
+		s.AvgFitness = totalFitness / float64(len(s.Genomes))
+		surviving = append(surviving, s)
 	}
-	for i := len(extinctSpeciesIndices) - 1; i >= 0; i-- {
-		newSpecies = util.RemoveSliceIndex(newSpecies, i)
-	}
-	pop.Species = newSpecies
+
+	pop.Species = surviving
 	return pop
 }
 
+// AdjustCompatThreshold nudges the compatibility threshold towards whatever
+// keeps the number of species near cfg.TargetSpecies.
+//
+// A fixed threshold is fragile: the same value that yields a healthy handful of
+// species at the start will shatter the population into dozens once genomes
+// have grown, and once species are down to two or three members each, almost
+// every slot goes to elites and the search stops making progress. Retargeting
+// the threshold each generation keeps speciation doing its actual job of
+// protecting innovation rather than fragmenting the population.
+func AdjustCompatThreshold(pop Population) Population {
+	if pop.Cfg.TargetSpecies <= 0 || pop.Cfg.SpeciesCompatThresholdAdjust <= 0 {
+		return pop
+	}
+	switch {
+	case len(pop.Species) > pop.Cfg.TargetSpecies:
+		pop.Cfg.SpeciesCompatThreshold += pop.Cfg.SpeciesCompatThresholdAdjust
+	case len(pop.Species) < pop.Cfg.TargetSpecies:
+		pop.Cfg.SpeciesCompatThreshold -= pop.Cfg.SpeciesCompatThresholdAdjust
+	}
+	if pop.Cfg.SpeciesCompatThreshold < pop.Cfg.MinSpeciesCompatThreshold {
+		pop.Cfg.SpeciesCompatThreshold = pop.Cfg.MinSpeciesCompatThreshold
+	}
+	return pop
+}
+
+// RankSpecies sorts the genomes within each species, and the species
+// themselves, from fittest to least fit.
 func RankSpecies(pop Population) Population {
-	for _, species := range pop.Species {
-		// Sort genomes in each species in desc order of fitness
-		sort.Slice(species.Genomes, func(i, j int) bool {
-			a := species.Genomes[i]
-			b := species.Genomes[j]
-			return pop.GenomeFitness[a] > pop.GenomeFitness[b]
+	for i := range pop.Species {
+		genomes := pop.Species[i].Genomes
+		sort.Slice(genomes, func(a, b int) bool {
+			return pop.GenomeFitness[genomes[a]] > pop.GenomeFitness[genomes[b]]
 		})
 	}
-	// Sort pop.Species in desc order of BestFitness
-	sort.Slice(pop.Species, func(i, j int) bool {
+	sort.SliceStable(pop.Species, func(i, j int) bool {
 		return pop.Species[i].BestFitness > pop.Species[j].BestFitness
 	})
 	return pop
 }
 
-func CullSpecies(pop Population) Population {
-	// Remove the bottom X genomes from each species
+// FitnessSharing computes each genome's adjusted fitness: its raw fitness
+// divided by the size of its species.
+//
+// Sharing is what stops a single successful topology from swamping the
+// population - a large species has to be proportionally fitter to earn the
+// same number of offspring. The raw fitness is left untouched so that
+// reporting and best-genome tracking stay honest.
+func FitnessSharing(pop Population) Population {
+	for i := range pop.GenomeAdjustedFitness {
+		pop.GenomeAdjustedFitness[i] = 0
+	}
 	for i, species := range pop.Species {
 		if len(species.Genomes) == 0 {
 			continue
 		}
-		ratio := math.Ceil(pop.Cfg.SurvivalThreshold * float64(len(species.Genomes)))
-		ratioIndex := int(ratio)
-		// Keep elements from 0 - ratioIndex
-		pop.Species[i].Genomes = pop.Species[i].Genomes[:ratioIndex]
-	}
-	return pop
-}
-
-func FitnessSharing(pop Population) Population {
-	for i, species := range pop.Species {
-		fitnessSum := 0.0
+		size := float64(len(species.Genomes))
+		sum := 0.0
 		for _, genomeIndex := range species.Genomes {
-			pop.GenomeFitness[genomeIndex] = pop.GenomeFitness[genomeIndex] / float64(len(species.Genomes))
-			fitnessSum += pop.GenomeFitness[genomeIndex]
+			adjusted := pop.GenomeFitness[genomeIndex] / size
+			pop.GenomeAdjustedFitness[genomeIndex] = adjusted
+			sum += adjusted
 		}
-		pop.Species[i].AvgFitness = fitnessSum / float64(len(species.Genomes))
+		pop.Species[i].AdjustedFitness = sum / size
 	}
 	return pop
 }
 
+// CullSpecies removes the least fit members of each species so that only the
+// top SurvivalThreshold fraction may reproduce. At least two members are kept
+// where possible so that crossover still has two parents to work with.
+func CullSpecies(pop Population) Population {
+	for i, species := range pop.Species {
+		if len(species.Genomes) == 0 {
+			continue
+		}
+		keep := int(math.Ceil(pop.Cfg.SurvivalThreshold * float64(len(species.Genomes))))
+		if keep < 2 {
+			keep = 2
+		}
+		if keep > len(species.Genomes) {
+			keep = len(species.Genomes)
+		}
+		pop.Species[i].Genomes = species.Genomes[:keep]
+	}
+	return pop
+}
+
+// KillStaleSpecies removes species that have not improved for
+// SpeciesStalenessThreshold generations, always keeping the SpeciesElitism
+// fittest species alive. If every species is stale the elitism floor is what
+// stops the population from going extinct.
 func KillStaleSpecies(pop Population) Population {
-	keepSpecies := make([]Species, 0)
-	removedSpecies := make([]Species, 0)
+	keep := make([]Species, 0, len(pop.Species))
 	for i, species := range pop.Species {
-		if i < pop.Cfg.SpeciesElitism {
-			keepSpecies = append(keepSpecies, species)
-			continue
-		}
-		if species.Staleness < pop.Cfg.SpeciesStalenessThreshold {
-			keepSpecies = append(keepSpecies, species)
-		} else {
-			removedSpecies = append(removedSpecies, species)
+		if i < pop.Cfg.SpeciesElitism || species.Staleness < pop.Cfg.SpeciesStalenessThreshold {
+			keep = append(keep, species)
 		}
 	}
-
-	pop.Species = keepSpecies
-
+	if len(keep) == 0 {
+		return pop
+	}
+	pop.Species = keep
 	return pop
 }
 
-func KillBadSpecies(pop Population) Population {
-	desiredOffspring := getDesiredOffspringCount(pop)
-	keepSpecies := make([]Species, 0)
-	for i, species := range pop.Species {
-		if i < pop.Cfg.SpeciesElitism {
-			// Always leave at least the required species alive
-			keepSpecies = append(keepSpecies, species)
-			continue
-		}
-		numOffspring, ok := desiredOffspring[i]
-		if !ok {
-			continue
-		}
-		if numOffspring < pop.Cfg.MinSpeciesSize {
-			continue
-		}
-		keepSpecies = append(keepSpecies, species)
+// getDesiredOffspringCount allocates the whole population across the species in
+// proportion to their adjusted fitness.
+//
+// The allocation is exact: largest-remainder rounding distributes the leftover
+// slots, so the population size never drifts. Adjusted fitnesses are shifted to
+// be non-negative first, because a fitness function that returns negative
+// values would otherwise produce negative or nonsensical shares.
+func getDesiredOffspringCount(pop Population) []int {
+	counts := make([]int, len(pop.Species))
+	if len(pop.Species) == 0 {
+		return counts
 	}
 
-	pop.Species = keepSpecies
-
-	return pop
-}
-
-func getDesiredOffspringCount(pop Population) map[int]int {
-	avgFitnessSum := 0.0
+	minFitness := math.Inf(1)
 	for _, species := range pop.Species {
-		avgFitnessSum += species.AvgFitness
+		if species.AdjustedFitness < minFitness {
+			minFitness = species.AdjustedFitness
+		}
 	}
 
-	desiredOffspring := make(map[int]int)
+	// Every species gets a small floor share so that a species which is merely
+	// the worst is not instantly wiped out.
+	const epsilon = 1e-9
+	shares := make([]float64, len(pop.Species))
+	total := 0.0
 	for i, species := range pop.Species {
-		offspringCount := int(math.Floor(species.AvgFitness / avgFitnessSum * float64(pop.Cfg.PopulationSize)))
-		desiredOffspring[i] = offspringCount
-	}
-	return desiredOffspring
-}
-
-func CompatibleWithSpecies(pop Population, species Species, genome Genome) bool {
-	excessAndDisjoint := countExcessAndDisjointGenes(genome, species.Representative)
-	averageWeightDiff := calculateAverageConnectionWeightDiff(genome, species.Representative)
-	averageBiasDiff := calculateAverageNodeBiasDiff(genome, species.Representative)
-
-	var largeGenomeNormaliser = (genome.NumLayers() + genome.NumNodes()) - 20
-	if largeGenomeNormaliser < 1 {
-		largeGenomeNormaliser = 1
+		shares[i] = species.AdjustedFitness - minFitness + epsilon
+		total += shares[i]
 	}
 
-	excessAndDisjointDiff := pop.Cfg.SpeciesCompatExcessCoeff * float64(excessAndDisjoint) / float64(largeGenomeNormaliser)
-	weightDiff := pop.Cfg.SpeciesCompatWeightDiffCoeff * averageWeightDiff
-	biasDiff := pop.Cfg.SpeciesCompatBiasDiffCoeff * averageBiasDiff
-
-	// Lower means more similar
-	compatibility := excessAndDisjointDiff + weightDiff + biasDiff
-	return compatibility <= pop.Cfg.SpeciesCompatThreshold
-}
-
-func countExcessAndDisjointGenes(a, b Genome) int {
-	innovationNumCount := make(map[int]int)
-
-	for _, node := range a.Layers.Nodes() {
-		innovationNumCount[node.ID]++
+	// Distribute whole slots first, tracking the fractional remainder.
+	type remainder struct {
+		index int
+		frac  float64
 	}
-	for _, node := range b.Layers.Nodes() {
-		innovationNumCount[node.ID]++
-	}
-	for _, connection := range a.Connections {
-		innovationNumCount[connection.ID]++
-	}
-	for _, connection := range b.Connections {
-		innovationNumCount[connection.ID]++
+	remainders := make([]remainder, len(pop.Species))
+	allocated := 0
+	for i := range pop.Species {
+		exact := shares[i] / total * float64(pop.Cfg.PopulationSize)
+		counts[i] = int(math.Floor(exact))
+		allocated += counts[i]
+		remainders[i] = remainder{index: i, frac: exact - math.Floor(exact)}
 	}
 
-	tot := 0
-	for _, count := range innovationNumCount {
-		if count < 2 {
-			tot++
+	// Then hand out what is left over, largest remainder first.
+	sort.SliceStable(remainders, func(a, b int) bool {
+		return remainders[a].frac > remainders[b].frac
+	})
+	for i := 0; allocated < pop.Cfg.PopulationSize; i = (i + 1) % len(remainders) {
+		counts[remainders[i].index]++
+		allocated++
+	}
+
+	// Apply the minimum species size, then claw the extra slots back from the
+	// largest allocations so the total still matches the population size.
+	for i := range counts {
+		if counts[i] < pop.Cfg.MinSpeciesSize {
+			allocated += pop.Cfg.MinSpeciesSize - counts[i]
+			counts[i] = pop.Cfg.MinSpeciesSize
 		}
 	}
+	for allocated > pop.Cfg.PopulationSize {
+		largest := 0
+		for i := range counts {
+			if counts[i] > counts[largest] {
+				largest = i
+			}
+		}
+		if counts[largest] <= 1 {
+			// Nothing left to take without emptying a species.
+			break
+		}
+		counts[largest]--
+		allocated--
+	}
 
-	return tot
+	return counts
 }
 
-func calculateAverageConnectionWeightDiff(a, b Genome) float64 {
-	innovationNumCount := make(map[int]int)
-	innovationWeights := make(map[int]float64)
-	for _, connection := range a.Connections {
-		innovationNumCount[connection.ID]++
-		innovationWeights[connection.ID] = connection.Weight
-	}
-	for _, connection := range b.Connections {
-		innovationNumCount[connection.ID]++
-		innovationWeights[connection.ID] -= connection.Weight
-	}
-
-	tot := .0
-	totalWeightDiff := .0
-	for i, count := range innovationNumCount {
-		if count == 2 {
-			tot++
-			totalWeightDiff += math.Abs(innovationWeights[i])
-		}
-	}
-
-	// Avoid divide by zero
-	if tot == 0 {
-		return 100
-	}
-	return totalWeightDiff / tot
-}
-
-func calculateAverageNodeBiasDiff(a, b Genome) float64 {
-	innovationNumCount := make(map[int]int)
-	innovationBiases := make(map[int]float64)
-	for _, layer := range a.Layers {
-		for _, node := range layer {
-			innovationNumCount[node.ID]++
-			innovationBiases[node.ID] = node.Bias
-		}
-	}
-	for _, layer := range b.Layers {
-		for _, node := range layer {
-			innovationNumCount[node.ID]++
-			innovationBiases[node.ID] -= node.Bias
-		}
-	}
-
-	tot := .0
-	totalBiasDiff := .0
-	for i, count := range innovationNumCount {
-		if count == 2 {
-			tot++
-			totalBiasDiff += math.Abs(innovationBiases[i])
-		}
-	}
-
-	// Avoid divide by zero
-	if tot == 0 {
-		return 100
-	}
-	return totalBiasDiff / tot
-}
-
+// GetOffspring produces a single mutated child from the given species.
 func GetOffspring(pop Population, species Species) Genome {
-	performCrossover := util.FloatBetween(0, 1) < pop.Cfg.MateCrossoverRate
-	var baby Genome
-	if performCrossover {
-		a := getSpeciesGenomeForCrossover(pop, species)
-		b := getSpeciesGenomeForCrossover(pop, species)
-		if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
-			a, b = b, a
-		}
-		aGenome := pop.Genomes[a]
-		bGenome := pop.Genomes[b]
-		baby = Crossover(pop.Cfg, aGenome, bGenome)
-	} else {
-		randomGenome := getSpeciesGenomeForCrossover(pop, species)
-		baby = CopyGenome(pop.Genomes[randomGenome])
-	}
-	return MutateGenome(pop.Cfg, baby)
+	breeder := pop.Breeder
+	return breeder.mutateStructure(breeder.breed(pop, species))
 }
 
-func getSpeciesGenomeForCrossover(pop Population, species Species) int {
-	fitnessSum := 0.0
-	for _, genomeID := range species.Genomes {
-		fitnessSum += pop.GenomeFitness[genomeID]
+// breed selects parents, produces a child, and applies every mutation that does
+// not change the genome's structure.
+//
+// This is the expensive half of making an offspring and it touches no shared
+// state beyond the read-only population, so many can run at once. The
+// structural half is applied separately by mutateStructure.
+func (b *Breeder) breed(pop Population, species Species) Genome {
+	rng := b.rng
+	if len(species.Genomes) == 0 {
+		return Genome{}
 	}
-	chosenFitness := util.FloatBetween(0, fitnessSum)
-	pickSum := 0.0
-	for _, genomeID := range species.Genomes {
-		pickSum += pop.GenomeFitness[genomeID]
-		if pickSum > chosenFitness {
-			return genomeID
+
+	var child Genome
+	if len(species.Genomes) > 1 && b.cfg.Chance(rng, b.cfg.MateCrossoverRate) {
+		fitter := getSpeciesGenomeForCrossover(pop, rng, species)
+		other := getSpeciesGenomeForCrossover(pop, rng, species)
+		if pop.GenomeFitness[fitter] < pop.GenomeFitness[other] {
+			fitter, other = other, fitter
+		}
+		// Crossover builds a brand new genome, so it is already ours to mutate.
+		child = b.Crossover(pop.Genomes[fitter], pop.Genomes[other])
+	} else {
+		// A straight clone still shares its slices with the parent, so it has
+		// to be copied before being mutated.
+		child = CopyGenome(pop.Genomes[util.RandSliceElement(rng, species.Genomes)])
+	}
+
+	return b.mutateParameters(child)
+}
+
+// getSpeciesGenomeForCrossover picks a parent by roulette over the species'
+// fitnesses. Fitnesses are shifted to be non-negative so that a fitness
+// function returning negative values still produces a valid distribution.
+func getSpeciesGenomeForCrossover(pop Population, rng *Rand, species Species) int {
+	minFitness := math.Inf(1)
+	for _, genomeIndex := range species.Genomes {
+		if pop.GenomeFitness[genomeIndex] < minFitness {
+			minFitness = pop.GenomeFitness[genomeIndex]
+		}
+	}
+
+	fitnessSum := 0.0
+	for _, genomeIndex := range species.Genomes {
+		fitnessSum += pop.GenomeFitness[genomeIndex] - minFitness
+	}
+	if fitnessSum <= 0 {
+		// Every member is equally fit, so pick uniformly.
+		return util.RandSliceElement(rng, species.Genomes)
+	}
+
+	chosen := util.FloatBetween(rng, 0, fitnessSum)
+	running := 0.0
+	for _, genomeIndex := range species.Genomes {
+		running += pop.GenomeFitness[genomeIndex] - minFitness
+		if running > chosen {
+			return genomeIndex
 		}
 	}
 	return species.Genomes[0]

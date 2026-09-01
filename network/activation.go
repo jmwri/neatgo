@@ -1,103 +1,136 @@
 package network
 
 import (
-	"github.com/jmwri/neatgo/util"
 	"math"
+	"math/rand/v2"
 	"sync"
+	"sync/atomic"
+
+	"github.com/jmwri/neatgo/v2/internal/util"
 )
 
 type ActivationFunction func(x float64) float64
 
 type ActivationFunctionName string
 
+// activationRegistry holds the activation functions available to genomes.
+// Reads are lock-free: the function table is swapped atomically on write so
+// that Get can be called from evaluation hot loops without contention.
 type activationRegistry struct {
 	mu        sync.Mutex
-	functions map[ActivationFunctionName]ActivationFunction
+	functions atomic.Pointer[map[ActivationFunctionName]ActivationFunction]
 	names     []ActivationFunctionName
 }
 
 func (r *activationRegistry) Set(n ActivationFunctionName, fn ActivationFunction) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	current := r.functions.Load()
+	next := make(map[ActivationFunctionName]ActivationFunction, len(*current)+1)
+	for name, existing := range *current {
+		next[name] = existing
+	}
+
+	_, known := next[n]
 	if fn == nil {
-		delete(r.functions, n)
-		for i, name := range r.names {
-			if name == n {
-				r.names = util.RemoveSliceIndex(r.names, i)
+		delete(next, n)
+		if known {
+			for i, name := range r.names {
+				if name == n {
+					r.names = append(r.names[:i], r.names[i+1:]...)
+					break
+				}
 			}
 		}
 	} else {
-		r.functions[n] = fn
-		r.names = append(r.names, n)
+		next[n] = fn
+		if !known {
+			// Only track the name on first registration, otherwise overriding a
+			// function would list it twice and bias random selection.
+			r.names = append(r.names, n)
+		}
 	}
+
+	r.functions.Store(&next)
 }
 
 func (r *activationRegistry) Get(n ActivationFunctionName) ActivationFunction {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.functions[n]
+	return (*r.functions.Load())[n]
 }
 
+// Names returns a copy of the registered activation function names.
 func (r *activationRegistry) Names() []ActivationFunctionName {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.names
+	names := make([]ActivationFunctionName, len(r.names))
+	copy(names, r.names)
+	return names
 }
 
-var ActivationRegistry = &activationRegistry{
-	mu:        sync.Mutex{},
-	functions: make(map[ActivationFunctionName]ActivationFunction),
+var ActivationRegistry = newActivationRegistry()
+
+func newActivationRegistry() *activationRegistry {
+	r := &activationRegistry{
+		names: make([]ActivationFunctionName, 0),
+	}
+	empty := make(map[ActivationFunctionName]ActivationFunction)
+	r.functions.Store(&empty)
+
+	// Registered here rather than in an init function so that the registry is
+	// never observable in an empty state.
+	r.Set(NoActivation, NoActivationFn)
+	r.Set(Identity, IdentityFn)
+	r.Set(Sigmoid, SigmoidFn)
+	r.Set(Tanh, TanhFn)
+	r.Set(Sin, SinFn)
+	r.Set(Gauss, GaussFn)
+	r.Set(Relu, ReluFn)
+	r.Set(Elu, EluFn)
+	r.Set(Lelu, LeluFn)
+	r.Set(Selu, SeluFn)
+	r.Set(SoftPlus, SoftPlusFn)
+	r.Set(Clamped, ClampedFn)
+	r.Set(Inv, InvFn)
+	r.Set(Log, LogFn)
+	r.Set(Exp, ExpFn)
+	r.Set(Abs, AbsFn)
+	r.Set(Hat, HatFn)
+	r.Set(Square, SquareFn)
+	r.Set(Cube, CubeFn)
+
+	return r
 }
 
-func init() {
-	ActivationRegistry.Set(NoActivation, NoActivationFn)
-	ActivationRegistry.Set(Identity, IdentityFn)
-	ActivationRegistry.Set(Sigmoid, SigmoidFn)
-	ActivationRegistry.Set(Tanh, TanhFn)
-	ActivationRegistry.Set(Sin, SinFn)
-	ActivationRegistry.Set(Gauss, GaussFn)
-	ActivationRegistry.Set(Relu, ReluFn)
-	ActivationRegistry.Set(Elu, EluFn)
-	ActivationRegistry.Set(Lelu, LeluFn)
-	ActivationRegistry.Set(Selu, SeluFn)
-	ActivationRegistry.Set(SoftPlus, SoftPlusFn)
-	ActivationRegistry.Set(Clamped, ClampedFn)
-	ActivationRegistry.Set(Inv, InvFn)
-	ActivationRegistry.Set(Log, LogFn)
-	ActivationRegistry.Set(Exp, ExpFn)
-	ActivationRegistry.Set(Abs, AbsFn)
-	ActivationRegistry.Set(Hat, HatFn)
-	ActivationRegistry.Set(Square, SquareFn)
-	ActivationRegistry.Set(Cube, CubeFn)
-}
-
-func RandomActivationFunction(choices ...ActivationFunctionName) ActivationFunctionName {
+// RandomActivationFunction picks one of the given activation functions, or one
+// of every registered function when no choices are given.
+func RandomActivationFunction(rng *rand.Rand, choices ...ActivationFunctionName) ActivationFunctionName {
 	if len(choices) == 0 {
 		choices = ActivationRegistry.Names()
 	}
-	return util.RandSliceElement(choices)
+	return util.RandSliceElement(rng, choices)
 }
 
 const (
 	NoActivation ActivationFunctionName = "no-activation"
-	Identity                            = "identity"
-	Sigmoid                             = "sigmoid"
-	Tanh                                = "tanh"
-	Sin                                 = "sin"
-	Gauss                               = "gauss"
-	Relu                                = "relu"
-	Elu                                 = "elu"
-	Lelu                                = "lelu"
-	Selu                                = "selu"
-	SoftPlus                            = "softplus"
-	Clamped                             = "clamped"
-	Inv                                 = "inv"
-	Log                                 = "log"
-	Exp                                 = "exp"
-	Abs                                 = "abs"
-	Hat                                 = "hat"
-	Square                              = "square"
-	Cube                                = "cube"
+	Identity     ActivationFunctionName = "identity"
+	Sigmoid      ActivationFunctionName = "sigmoid"
+	Tanh         ActivationFunctionName = "tanh"
+	Sin          ActivationFunctionName = "sin"
+	Gauss        ActivationFunctionName = "gauss"
+	Relu         ActivationFunctionName = "relu"
+	Elu          ActivationFunctionName = "elu"
+	Lelu         ActivationFunctionName = "lelu"
+	Selu         ActivationFunctionName = "selu"
+	SoftPlus     ActivationFunctionName = "softplus"
+	Clamped      ActivationFunctionName = "clamped"
+	Inv          ActivationFunctionName = "inv"
+	Log          ActivationFunctionName = "log"
+	Exp          ActivationFunctionName = "exp"
+	Abs          ActivationFunctionName = "abs"
+	Hat          ActivationFunctionName = "hat"
+	Square       ActivationFunctionName = "square"
+	Cube         ActivationFunctionName = "cube"
 )
 
 func NoActivationFn(x float64) float64 {
@@ -125,7 +158,8 @@ func SinFn(x float64) float64 {
 
 func GaussFn(x float64) float64 {
 	x = math.Max(-3.4, math.Min(3.4, x))
-	return math.Exp(math.Pow(-5*x, 2))
+	// exp(-5x^2). Note the sign is inside the exponent, not on the squared term.
+	return math.Exp(-5 * x * x)
 }
 
 func ReluFn(x float64) float64 {

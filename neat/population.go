@@ -1,42 +1,68 @@
 package neat
 
 import (
+	"context"
 	"fmt"
-	"github.com/jmwri/neatgo/network"
-	"github.com/jmwri/neatgo/util"
 	"math"
+	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 )
 
+// GeneratePopulation builds the initial population.
+//
+// Every member is a copy of one template genome with freshly drawn weights and
+// biases. That shared genotype matters: NEAT identifies genes by their
+// historical marking, so if each genome were generated independently they would
+// share no gene IDs at all, every genome would look maximally different from
+// every other, and the population would shatter into one species per genome
+// before evolution had run a single step.
 func GeneratePopulation(cfg Config) (Population, error) {
-	genomes := make([]Genome, cfg.PopulationSize)
-	genomeStates := make([]GenomeState, cfg.PopulationSize)
+	if err := cfg.Validate(); err != nil {
+		return Population{}, err
+	}
+	seed := cfg.Seed
+	if seed == 0 {
+		// Draw one rather than leaving the run un-seeded, and record it below so
+		// an interesting result can be replayed by setting Config.Seed.
+		seed = RandomSeed()
+	}
 	pop := Population{
 		Cfg:                   cfg,
-		Genomes:               genomes,
-		GenomeStates:          genomeStates,
+		Seed:                  seed,
+		Breeder:               NewBreeder(cfg, NewRand(seed), nil),
+		Genomes:               make([]Genome, cfg.PopulationSize),
 		GenomeFitness:         make([]float64, cfg.PopulationSize),
+		GenomeAdjustedFitness: make([]float64, cfg.PopulationSize),
 		Species:               make([]Species, 0),
 		Generation:            0,
 		BestEverGenomeFitness: math.Inf(-1),
 		BestGenomeFitness:     math.Inf(-1),
 	}
-	var err error
-	for i := 0; i < cfg.PopulationSize; i++ {
-		genomes[i], err = GenerateGenome(cfg)
-		if err != nil {
-			return pop, fmt.Errorf("failed to generate genome: %w", err)
-		}
+
+	template, err := pop.Breeder.NewGenome()
+	if err != nil {
+		return pop, fmt.Errorf("neat: failed to generate genome: %w", err)
 	}
-	return buildGenomeStates(pop), nil
+	for i := range pop.Genomes {
+		pop.Genomes[i] = pop.Breeder.RandomizeWeights(template)
+	}
+	return pop, nil
 }
 
 type Population struct {
-	Cfg     Config
+	Cfg Config
+	// Seed is the seed this run was started from. Setting Config.Seed to it
+	// reproduces the run exactly.
+	Seed uint64
+	// Breeder owns the run's random source and innovation registry, and
+	// produces every new genome. It must not be used concurrently.
+	Breeder *Breeder
 	Genomes []Genome
-	// GenomeStates contains a GenomeState and should be used for the Genome as the same index.
-	GenomeStates          []GenomeState
-	GenomeFitness         []float64
+	// GenomeFitness holds the raw fitness reported by the evaluator.
+	GenomeFitness []float64
+	// GenomeAdjustedFitness holds the fitness after sharing within a species.
+	GenomeAdjustedFitness []float64
 	Species               []Species
 	Generation            int
 	BestEverGenome        Genome
@@ -45,233 +71,319 @@ type Population struct {
 	BestGenomeFitness     float64
 }
 
-func (p Population) States() []ClientGenomeState {
-	clientStates := make([]ClientGenomeState, len(p.GenomeStates))
-	for i := range p.GenomeStates {
-		clientStates[i] = p.GenomeStates[i]
+// RunGeneration evaluates every genome concurrently and returns the next
+// generation.
+//
+// The evaluator is called once per genome, from one of cfg.Parallelism worker
+// goroutines. If any evaluation fails the generation is abandoned: the error is
+// returned and the population comes back without having advanced, so the caller
+// can fix the problem and retry.
+func RunGeneration(ctx context.Context, pop Population, eval Evaluator) (Population, error) {
+	if err := Evaluate(ctx, pop, eval); err != nil {
+		return pop, err
 	}
-	return clientStates
+	return Advance(pop), nil
 }
 
-type ClientGenomeState interface {
-	// SendInput returns a channel where the client can send input to be processed through the network.
-	SendInput() chan<- []float64
-	// SendFitness returns a channel where the client can send the fitness of the genome.
-	SendFitness() chan<- float64
-	// GetOutput returns a channel where the client can receive the output from the network.
-	GetOutput() <-chan []float64
-	// GetError returns a channel where errors can be received.
-	GetError() <-chan error
-}
-type BackendGenomeState interface {
-	// GetInput returns a channel where the backend can receive input to be processed through the network.
-	GetInput() <-chan []float64
-	// GetFitness returns a channel where the backend can receive the fitness of the genome.
-	GetFitness() <-chan float64
-	// SendOutput returns a channel where the backend can send the output from the network.
-	SendOutput() chan<- []float64
-	// SendError returns a channel where the backend can send any errors.
-	SendError() chan<- error
-}
-
-type genomeState struct {
-	inputCh   chan []float64
-	fitnessCh chan float64
-	outputCh  chan []float64
-	errCh     chan error
-}
-
-func (s genomeState) SendInput() chan<- []float64 {
-	return s.inputCh
-}
-
-func (s genomeState) GetInput() <-chan []float64 {
-	return s.inputCh
-}
-
-func (s genomeState) SendFitness() chan<- float64 {
-	return s.fitnessCh
-}
-
-func (s genomeState) GetFitness() <-chan float64 {
-	return s.fitnessCh
-}
-
-func (s genomeState) SendOutput() chan<- []float64 {
-	return s.outputCh
-}
-
-func (s genomeState) GetOutput() <-chan []float64 {
-	return s.outputCh
-}
-
-func (s genomeState) SendError() chan<- error {
-	return s.errCh
-}
-
-func (s genomeState) GetError() <-chan error {
-	return s.errCh
-}
-
-type GenomeState interface {
-	ClientGenomeState
-	BackendGenomeState
-}
-
-func RunGeneration(pop Population) Population {
+// Advance produces the next generation from the fitnesses already in
+// pop.GenomeFitness.
+//
+// RunGeneration is Evaluate followed by Advance. Call them separately when
+// scoring cannot be expressed as one independent Evaluator per genome - a
+// competitive tournament where genomes are played off against each other, for
+// instance. Write each genome's score into pop.GenomeFitness by index, then
+// hand the population here.
+func Advance(pop Population) Population {
 	pop.Generation++
-	wg := sync.WaitGroup{}
-	wg.Add(len(pop.Genomes))
-	for i := range pop.Genomes {
-		go runGenome(&wg, pop, i)
-	}
+	// Keep the breeder's view of the settings in step with the population's, so
+	// that a caller adjusting pop.Cfg between generations is actually obeyed
+	// rather than silently ignored by reproduction, and give the generation its
+	// own random stream derived from the run's seed.
+	pop.Breeder = pop.Breeder.withConfig(pop.Cfg).withRand(NewRand(generationSeed(pop.Seed, pop.Generation)))
+	pop = sanitiseFitness(pop)
 
-	// Wait for all genomes in population to finish.
-	wg.Wait()
-
-	pop = Speciate(pop)
-	pop = RankSpecies(pop)
-	pop = CullSpecies(pop)
-	pop = FitnessSharing(pop)
-	pop = KillStaleSpecies(pop)
-	pop = KillBadSpecies(pop)
-	pop = Evolve(pop)
-
-	highestFitness := math.Inf(-1)
-	for genomeID, fitness := range pop.GenomeFitness {
-		if fitness > highestFitness {
-			highestFitness = fitness
+	// Record the best of this generation before reproduction replaces the
+	// population. Doing this afterwards would report the fitness of whatever
+	// happened to be carried into the next generation, most of which has not
+	// been evaluated yet.
+	pop.BestGenomeFitness = math.Inf(-1)
+	for i, fitness := range pop.GenomeFitness {
+		if fitness > pop.BestGenomeFitness {
 			pop.BestGenomeFitness = fitness
-			pop.BestGenome = pop.Genomes[genomeID]
+			pop.BestGenome = pop.Genomes[i]
 		}
 	}
 	if pop.BestGenomeFitness > pop.BestEverGenomeFitness {
 		pop.BestEverGenomeFitness = pop.BestGenomeFitness
-		pop.BestEverGenome = pop.BestGenome
+		pop.BestEverGenome = CopyGenome(pop.BestGenome)
 	}
 
-	// Build fresh genome states for next generation.
-	return buildGenomeStates(pop)
+	pop = Speciate(pop)
+	pop = AdjustCompatThreshold(pop)
+	pop = RankSpecies(pop)
+	pop = FitnessSharing(pop)
+	pop = KillStaleSpecies(pop)
+	pop = CullSpecies(pop)
+	pop = Evolve(pop)
+
+	return pop
 }
 
-func runGenome(wg *sync.WaitGroup, pop Population, i int) {
-	genome := pop.Genomes[i]
-	var state BackendGenomeState = pop.GenomeStates[i]
-	defer wg.Done()
-	defer close(state.SendOutput())
-	defer close(state.SendError())
-	for {
-		input, ok := <-state.GetInput()
-		if !ok {
-			// If input is closed, then game has finished.
-			fitness, ok := <-state.GetFitness()
-			if !ok {
-				state.SendError() <- fmt.Errorf("failed to receive fitness")
-				return
-			}
-			pop.GenomeFitness[i] = fitness
-			return
-		}
-		output, err := network.Activate(genome.Layers.Nodes(), genome.Connections, input)
+// RunOptions controls the loop driven by Run.
+type RunOptions struct {
+	// MaxGenerations stops the run once pop.Generation reaches this value.
+	// Zero means no limit, in which case Solved, OnGeneration or context
+	// cancellation must end the run.
+	MaxGenerations int
+	// Solved is called after each generation. Returning true ends the run.
+	Solved func(pop Population) bool
+	// OnGeneration is called after each generation, for logging or
+	// checkpointing. Returning an error ends the run, and Run returns it.
+	OnGeneration func(pop Population) error
+}
+
+// Run evolves the population until Solved reports success, MaxGenerations is
+// reached, OnGeneration returns an error, or ctx is cancelled.
+//
+// The population is always returned, including when the run ends early, so the
+// best genome found so far is never lost to an error or a cancelled context.
+func Run(ctx context.Context, pop Population, eval Evaluator, opts RunOptions) (Population, error) {
+	if opts.MaxGenerations < 0 {
+		return pop, fmt.Errorf("%w: MaxGenerations must not be negative", ErrNoStopCondition)
+	}
+	if opts.MaxGenerations == 0 && opts.Solved == nil && opts.OnGeneration == nil && ctx.Done() == nil {
+		return pop, fmt.Errorf("%w: set MaxGenerations, Solved, OnGeneration or a cancellable context", ErrNoStopCondition)
+	}
+
+	for opts.MaxGenerations == 0 || pop.Generation < opts.MaxGenerations {
+		var err error
+		pop, err = RunGeneration(ctx, pop, eval)
 		if err != nil {
-			state.SendError() <- err
-			continue
+			return pop, err
 		}
-		state.SendOutput() <- output
+		if opts.OnGeneration != nil {
+			if err := opts.OnGeneration(pop); err != nil {
+				return pop, err
+			}
+		}
+		if opts.Solved != nil && opts.Solved(pop) {
+			return pop, nil
+		}
 	}
+	return pop, nil
 }
 
-func buildGenomeStates(pop Population) Population {
-	for i := range pop.GenomeStates {
-		pop.GenomeStates[i] = genomeState{
-			inputCh:   make(chan []float64),
-			fitnessCh: make(chan float64),
-			outputCh:  make(chan []float64),
-			errCh:     make(chan error),
+// sanitiseFitness replaces any non-finite fitness with the lowest finite
+// fitness in the population.
+//
+// A NaN or -Inf from an evaluator would otherwise propagate: shifting
+// fitnesses to be non-negative turns a single -Inf into an infinite range,
+// which makes the roulette selection and the offspring allocation produce
+// garbage for every genome, not just the broken one.
+func sanitiseFitness(pop Population) Population {
+	lowest := math.Inf(1)
+	for _, fitness := range pop.GenomeFitness {
+		if !math.IsInf(fitness, 0) && !math.IsNaN(fitness) && fitness < lowest {
+			lowest = fitness
+		}
+	}
+	if math.IsInf(lowest, 0) {
+		// Nothing finite to fall back on.
+		lowest = 0
+	}
+	for i, fitness := range pop.GenomeFitness {
+		if math.IsInf(fitness, 0) || math.IsNaN(fitness) {
+			pop.GenomeFitness[i] = lowest
 		}
 	}
 	return pop
 }
 
+// Evolve replaces the population with the next generation, allocating
+// offspring to each species in proportion to its adjusted fitness.
+//
+// The result always contains exactly cfg.PopulationSize genomes.
+//
+// Breeding runs in parallel; the structural mutations that follow it run one
+// genome at a time. That split is what lets the expensive part use every core
+// without making the run irreproducible: a structural mutation draws a
+// historical marking from the shared innovation registry, and if two workers
+// raced for those the gene numbering - and with it speciation, and with it the
+// whole run - would depend on which goroutine won.
 func Evolve(pop Population) Population {
-	offspringCount := getDesiredOffspringCount(pop)
-	newGenomes := make([]Genome, 0)
-	newFitness := make([]float64, 0)
-	newSpecies := make([]Species, 0)
+	offspringCounts := getDesiredOffspringCount(pop)
 
-	topSpeciesGenomes := make([]int, 0)
+	newGenomes := make([]Genome, 0, pop.Cfg.PopulationSize)
+	newSpecies := make([]Species, 0, len(pop.Species))
+	// sourceSpecies[n] is the index in pop.Species that newSpecies[n] came
+	// from, so that topping the population up breeds from the right parents.
+	sourceSpecies := make([]int, 0, len(pop.Species))
+	// Offspring slots to fill, collected first and bred afterwards.
+	var slots []offspringSlot
 
 	for i, species := range pop.Species {
-		// Take the top N genomes from each species for reproduction later
-		for j := 0; j < pop.Cfg.TopGenomesFromSpeciesToFill; j++ {
-			if j >= len(species.Genomes) {
-				break
-			}
-			oldGenomeIndex := species.Genomes[j]
-			topSpeciesGenomes = append(topSpeciesGenomes, oldGenomeIndex)
-		}
-
-		numOffspring, ok := offspringCount[i]
-		if !ok {
+		numOffspring := offspringCounts[i]
+		if numOffspring <= 0 || len(species.Genomes) == 0 {
 			continue
 		}
-		if numOffspring < pop.Cfg.MinSpeciesSize {
-			numOffspring = pop.Cfg.MinSpeciesSize
-		}
-
-		speciesGenomes := make([]int, 0)
 
 		elitism := pop.Cfg.Elitism
-		// Should only happen on the first run... Don't try to carry over more genomes than exist.
 		if elitism > len(species.Genomes) {
 			elitism = len(species.Genomes)
 		}
+		if elitism >= numOffspring && numOffspring > 1 {
+			// Never let elitism consume a species' entire allowance. A species
+			// made up only of unmutated copies of itself cannot search, and
+			// with many small species that stalls the whole population.
+			elitism = numOffspring - 1
+		}
+		if elitism > numOffspring {
+			elitism = numOffspring
+		}
 
-		// Add elite genomes from each species with no mutation.
+		speciesGenomes := make([]int, 0, numOffspring)
+
+		// Carry the species' best over untouched, so a solution once found is
+		// never lost to a bad mutation.
 		for j := 0; j < elitism; j++ {
-			oldGenomeIndex := species.Genomes[j]
-			newGenomeIndex := len(newGenomes)
-			newGenomes = append(newGenomes, pop.Genomes[oldGenomeIndex])
-			newFitness = append(newFitness, pop.GenomeFitness[oldGenomeIndex])
-			speciesGenomes = append(speciesGenomes, newGenomeIndex)
+			speciesGenomes = append(speciesGenomes, len(newGenomes))
+			newGenomes = append(newGenomes, pop.Genomes[species.Genomes[j]])
 		}
 
-		// Fill the remaining allowance with mutated offspring.
+		// Reserve the rest of the allowance for mutated offspring.
 		for j := elitism; j < numOffspring; j++ {
-			if len(pop.Species[i].Genomes) == 0 {
-				continue
-			}
-			// Get offspring from the species
-			offspring := GetOffspring(pop, pop.Species[i])
-			newGenomeIndex := len(newGenomes)
-			newGenomes = append(newGenomes, offspring)
-			newFitness = append(newFitness, 0)
-			speciesGenomes = append(speciesGenomes, newGenomeIndex)
+			speciesGenomes = append(speciesGenomes, len(newGenomes))
+			slots = append(slots, offspringSlot{index: len(newGenomes), species: species})
+			newGenomes = append(newGenomes, Genome{})
 		}
+
 		species.Genomes = speciesGenomes
 		newSpecies = append(newSpecies, species)
+		sourceSpecies = append(sourceSpecies, i)
 	}
 
-	// Once processed all species, if we have some population size left over, crossover the best genomes of all species.
-	// Don't add these genomes to any species.
-	if len(newGenomes) < pop.Cfg.PopulationSize && len(topSpeciesGenomes) != 0 {
-		for len(newGenomes) < pop.Cfg.PopulationSize {
-			a := util.RandSliceElement(topSpeciesGenomes)
-			b := util.RandSliceElement(topSpeciesGenomes)
-			if pop.GenomeFitness[a] < pop.GenomeFitness[b] {
-				a, b = b, a
-			}
-			aGenome := pop.Genomes[a]
-			bGenome := pop.Genomes[b]
-			baby := Crossover(pop.Cfg, aGenome, bGenome)
-			newGenomes = append(newGenomes, baby)
-			newFitness = append(newFitness, 0)
+	// Guard the population size against rounding and against every species
+	// dying out at once.
+	for len(newGenomes) > pop.Cfg.PopulationSize {
+		last := len(newSpecies) - 1
+		if last < 0 {
+			newGenomes = newGenomes[:pop.Cfg.PopulationSize]
+			break
 		}
+		if len(newSpecies[last].Genomes) <= 1 {
+			newSpecies = newSpecies[:last]
+			sourceSpecies = sourceSpecies[:last]
+			continue
+		}
+		newSpecies[last].Genomes = newSpecies[last].Genomes[:len(newSpecies[last].Genomes)-1]
+		newGenomes = newGenomes[:len(newGenomes)-1]
+		slots = dropSlot(slots, len(newGenomes))
 	}
+	for len(newGenomes) < pop.Cfg.PopulationSize {
+		if len(newSpecies) == 0 {
+			// Total extinction: reseed from the best genome ever seen, falling
+			// back to any surviving genome if there is no best yet.
+			seed := pop.BestEverGenome
+			if seed.NumLayers() == 0 {
+				if len(pop.Genomes) == 0 {
+					break
+				}
+				seed = pop.Genomes[0]
+			}
+			newGenomes = append(newGenomes, pop.Breeder.MutateGenome(seed))
+			continue
+		}
+		// Top up from the fittest surviving species.
+		newSpecies[0].Genomes = append(newSpecies[0].Genomes, len(newGenomes))
+		slots = append(slots, offspringSlot{index: len(newGenomes), species: pop.Species[sourceSpecies[0]]})
+		newGenomes = append(newGenomes, Genome{})
+	}
+
+	fillOffspring(pop, slots, newGenomes)
 
 	pop.Genomes = newGenomes
-	pop.GenomeFitness = newFitness
+	pop.GenomeFitness = make([]float64, len(newGenomes))
+	pop.GenomeAdjustedFitness = make([]float64, len(newGenomes))
 	pop.Species = newSpecies
-	pop.GenomeStates = make([]GenomeState, len(newGenomes))
 	return pop
+}
+
+// offspringSlot is a place in the next generation waiting for a child.
+//
+// Each slot carries its own pair of random seeds rather than a random source,
+// so that breeding a slot allocates nothing: a worker reseeds the source it
+// already owns. Two seeds because breeding and structural mutation happen in
+// separate passes, and each needs a stream that depends only on the run's seed.
+type offspringSlot struct {
+	index      int
+	species    Species
+	breedSeed  uint64
+	mutateSeed uint64
+	genome     Genome
+}
+
+func dropSlot(slots []offspringSlot, index int) []offspringSlot {
+	for i := range slots {
+		if slots[i].index == index {
+			return append(slots[:i], slots[i+1:]...)
+		}
+	}
+	return slots
+}
+
+// fillOffspring breeds every reserved slot and writes the results into genomes.
+func fillOffspring(pop Population, slots []offspringSlot, genomes []Genome) {
+	if len(slots) == 0 {
+		return
+	}
+
+	// Draw every slot's seeds up front, in order, from the population's own
+	// source. They therefore depend on the run's seed and nothing else - not on
+	// how the work is later divided between goroutines.
+	for i := range slots {
+		slots[i].breedSeed = pop.Breeder.rng.Uint64()
+		slots[i].mutateSeed = pop.Breeder.rng.Uint64()
+	}
+
+	// Breed in parallel. This reads the previous generation, which nothing is
+	// writing to, and otherwise touches only the worker's own state.
+	workers := reproductionWorkers(pop.Cfg.Parallelism, len(slots))
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			source := rand.NewPCG(0, 0)
+			breeder := pop.Breeder.withRand(rand.New(source))
+			for {
+				i := int(next.Add(1)) - 1
+				if i >= len(slots) {
+					return
+				}
+				source.Seed(slots[i].breedSeed, slots[i].breedSeed^pcgStreamOffset)
+				slots[i].genome = breeder.breed(pop, slots[i].species)
+			}
+		}()
+	}
+	wg.Wait()
+
+	// Apply structural mutations one at a time, in slot order, so historical
+	// markings are handed out in the same order on every run.
+	source := rand.NewPCG(0, 0)
+	breeder := pop.Breeder.withRand(rand.New(source))
+	for i := range slots {
+		source.Seed(slots[i].mutateSeed, slots[i].mutateSeed^pcgStreamOffset)
+		genomes[slots[i].index] = breeder.mutateStructure(slots[i].genome)
+	}
+}
+
+// reproductionWorkers sizes the breeding pool. Breeding is pure computation, so
+// Unlimited is treated as one worker per core rather than one per genome:
+// unlike a fitness evaluator, it never blocks on anything.
+func reproductionWorkers(parallelism, slots int) int {
+	if parallelism == Unlimited || parallelism < 0 {
+		parallelism = 0
+	}
+	return Workers(parallelism, slots)
 }

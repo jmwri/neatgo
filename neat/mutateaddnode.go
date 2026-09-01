@@ -1,113 +1,115 @@
 package neat
 
 import (
-	"github.com/jmwri/neatgo/network"
-	"github.com/jmwri/neatgo/util"
-	"math/rand"
+	"github.com/jmwri/neatgo/v2/network"
 )
 
-func MutateAddNode(cfg Config, genome Genome) Genome {
-	genome = CopyGenome(genome)
-	seed := cfg.RandFloatProvider(0, 1)
-	if seed > cfg.AddNodeMutationRate {
+// MutateAddNode returns a copy of genome with a connection split by a new node.
+func (b *Breeder) MutateAddNode(genome Genome) Genome {
+	return b.mutateAddNode(CopyGenome(genome))
+}
+
+// mutateAddNode splits an existing connection in two with a new hidden node
+// between the halves, disabling the original connection.
+//
+// The split is deliberately close to neutral: the incoming half gets a weight
+// of 1 and the outgoing half inherits the old weight, so the new node starts
+// out reproducing roughly what the connection it replaced did. A split that
+// randomises both weights is a large, usually fatal, perturbation - and NEAT
+// depends on new structure surviving long enough to be optimised.
+func (b *Breeder) mutateAddNode(genome Genome) Genome {
+	cfg, rng := b.cfg, b.rng
+	if !cfg.Chance(rng, cfg.AddNodeMutationRate) {
 		return genome
 	}
 
-	// If no Connections then we can't add a new node.
-	// Add a new connection instead.
-	if len(genome.Connections) == 0 {
-		return MutateAddConnection(cfg, genome)
-	}
-
-	connectionIndex := getValidConnectionIndexForAddNodeMutation(genome)
-	// If there are no Connections we can break, add a connection.
+	connectionIndex := b.validConnectionForAddNode(rng, genome)
 	if connectionIndex == -1 {
-		return MutateAddConnection(cfg, genome)
+		return genome
 	}
 
 	connection := genome.Connections[connectionIndex]
+	fromLayer := getNodeLayer(genome.Layers, connection.From)
+	toLayer := getNodeLayer(genome.Layers, connection.To)
+	if fromLayer == -1 || toLayer == -1 || toLayer <= fromLayer {
+		// Dangling or non feed-forward connection; nothing safe to split.
+		return genome
+	}
+
+	// The same split, discovered by any genome, yields the same three gene IDs.
+	split := b.innovations.SplitConnection(connection.ID, connection.From, connection.To)
 
 	node := network.NewNode(
-		cfg.IDProvider.Next(),
+		split.NodeID,
 		network.Hidden,
-		util.FloatBetween(cfg.MinBias, cfg.MaxBias),
-		network.RandomActivationFunction(cfg.HiddenActivationFns...),
+		0,
+		network.RandomActivationFunction(rng, cfg.HiddenActivationFns...),
 	)
-	connectionFrom := network.NewConnection(
-		cfg.IDProvider.Next(),
-		connection.From,
-		node.ID,
-		util.FloatBetween(cfg.MinWeight, cfg.MaxWeight),
-		true,
-	)
-	connectionTo := network.NewConnection(
-		cfg.IDProvider.Next(),
-		node.ID,
-		connection.To,
-		util.FloatBetween(cfg.MinWeight, cfg.MaxWeight),
-		true,
-	)
+	connectionFrom := network.NewConnection(split.InConnection, connection.From, node.ID, 1, true)
+	connectionTo := network.NewConnection(split.OutConnection, node.ID, connection.To, connection.Weight, true)
 
-	// Figure out if we need to create a new layer
-	fromLayer := getNodeLayer(genome.Layers, connectionFrom.From)
-	toLayer := getNodeLayer(genome.Layers, connectionTo.To)
-	// Calculate how many Layers there are between the connected nodes
-	// From = 3
-	// To = 4
-	// layersBetween = 4-3-1 = 0
-	// There are no Layers we can add a node to in between them, so need to create a new one!
-	layersBetween := toLayer - fromLayer - 1
-	// Always add to the layer closest to connectionFrom.From
+	// Always add to the layer closest to connection.From, inserting a new layer
+	// if the two nodes are already adjacent.
 	addToLayer := fromLayer + 1
-	if layersBetween < 1 {
-		// Shift all Layers from addToLayer up 1
-		genome.Layers = append(genome.Layers[:addToLayer+1], genome.Layers[addToLayer:]...)
+	if toLayer-fromLayer-1 < 1 {
+		genome.Layers = append(genome.Layers, nil)
+		copy(genome.Layers[addToLayer+1:], genome.Layers[addToLayer:])
 		genome.Layers[addToLayer] = []network.Node{}
 	}
 
-	// Disable old connection
 	genome.Connections[connectionIndex].Enabled = false
-	// Add new node + Connections to genome
 	genome.Layers[addToLayer] = append(genome.Layers[addToLayer], node)
-	genome.Connections = append(genome.Connections, connectionFrom)
-	genome.Connections = append(genome.Connections, connectionTo)
-
-	// If we're adding to the first layer after input, connect bias nodes to the new node.
-	if addToLayer == 1 {
-		for _, biasNode := range getBiasNodes(genome.Layers) {
-			biasConnection := network.NewConnection(
-				cfg.IDProvider.Next(),
-				biasNode.ID,
-				node.ID,
-				util.FloatBetween(cfg.MinWeight, cfg.MaxWeight),
-				true,
-			)
-			genome.Connections = append(genome.Connections, biasConnection)
-		}
-	}
+	genome.Connections = append(genome.Connections, connectionFrom, connectionTo)
 
 	return genome
 }
 
-func getValidConnectionIndexForAddNodeMutation(genome Genome) int {
+func (b *Breeder) validConnectionForAddNode(rng *Rand, genome Genome) int {
+	presentNodes := make(map[int]struct{}, genome.NumNodes())
+	for _, layer := range genome.Layers {
+		for _, node := range layer {
+			presentNodes[node.ID] = struct{}{}
+		}
+	}
+
 	// Build slice of Connections to process in order.
 	// Shuffle the slice.
 	connectionIndices := make([]int, len(genome.Connections))
-	for i, _ := range genome.Connections {
+	for i := range genome.Connections {
 		connectionIndices[i] = i
 	}
-	rand.Shuffle(len(connectionIndices), func(i, j int) {
+	rng.Shuffle(len(connectionIndices), func(i, j int) {
 		connectionIndices[i], connectionIndices[j] = connectionIndices[j], connectionIndices[i]
 	})
 
 	// Try each connection and return the first valid connection.
 	for _, i := range connectionIndices {
 		connection := genome.Connections[i]
-		from := getNodeFromLayers(genome.Layers, connection.From)
-		to := getNodeFromLayers(genome.Layers, connection.To)
+		if !connection.Enabled {
+			// Splitting an already disabled connection would add a node that
+			// contributes nothing.
+			continue
+		}
+		from, ok := getNodeFromLayers(genome.Layers, connection.From)
+		if !ok {
+			continue
+		}
+		to, ok := getNodeFromLayers(genome.Layers, connection.To)
+		if !ok {
+			continue
+		}
 		if from.Type == network.Bias || to.Type == network.Bias {
 			// Don't break any bias Connections
 			continue
+		}
+		// Historical markings are stable, so splitting a given connection
+		// always yields the same node ID. If this genome already holds that
+		// node - because the connection was re-enabled after an earlier split -
+		// splitting again would add a second copy of the same gene.
+		if split, ok := b.innovations.LookupSplit(connection.ID); ok {
+			if _, exists := presentNodes[split.NodeID]; exists {
+				continue
+			}
 		}
 		return i
 	}

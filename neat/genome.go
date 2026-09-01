@@ -2,8 +2,8 @@ package neat
 
 import (
 	"fmt"
-	"github.com/jmwri/neatgo/network"
-	"github.com/jmwri/neatgo/util"
+
+	"github.com/jmwri/neatgo/v2/network"
 )
 
 type Layers [][]network.Node
@@ -35,6 +35,19 @@ func (g Genome) NumConnections() int {
 	return len(g.Connections)
 }
 
+// NumGenes is the total number of node and connection genes, which is the
+// genome size used to normalise the compatibility distance.
+func (g Genome) NumGenes() int {
+	return g.NumNodes() + g.NumConnections()
+}
+
+// Compile builds a runnable network from the genome. The result is immutable
+// and safe to activate from many goroutines at once, so compile once and reuse
+// it rather than compiling per activation.
+func (g Genome) Compile() (*network.Network, error) {
+	return network.Compile(g.Layers.Nodes(), g.Connections)
+}
+
 func NewGenome(layers [][]network.Node, connections []network.Connection) Genome {
 	return Genome{
 		Layers:      layers,
@@ -42,7 +55,15 @@ func NewGenome(layers [][]network.Node, connections []network.Connection) Genome
 	}
 }
 
-func GenerateGenome(cfg Config) (Genome, error) {
+// NewGenome builds a minimal genome: every layer described by cfg.Layers,
+// fully connected between adjacent layers.
+//
+// Input and bias nodes are structural, not learnable. Inputs pass their value
+// through untouched and bias nodes emit a constant 1, so both are created with
+// a zero bias and are never mutated. Giving an input node a bias or a squashing
+// activation would corrupt the very signal the network is meant to read.
+func (b *Breeder) NewGenome() (Genome, error) {
+	cfg, rng := b.cfg, b.rng
 	genome := Genome{}
 	if len(cfg.Layers) < 2 {
 		return genome, fmt.Errorf("must have at least an input and output layer")
@@ -59,17 +80,20 @@ func GenerateGenome(cfg Config) (Genome, error) {
 		}
 
 		for nodeNum := 0; nodeNum < numNodes; nodeNum++ {
-			bias := cfg.RandFloatProvider(cfg.MinBias, cfg.MaxBias)
+			var bias float64
 			var activationFn network.ActivationFunctionName
-			if nodeType == network.Input {
+			switch nodeType {
+			case network.Input:
 				activationFn = cfg.InputActivationFn
-			} else if nodeType == network.Output {
+			case network.Output:
+				bias = cfg.RandBias(rng)
 				activationFn = cfg.OutputActivationFn
-			} else {
-				activationFn = network.RandomActivationFunction(cfg.HiddenActivationFns...)
+			default:
+				bias = cfg.RandBias(rng)
+				activationFn = network.RandomActivationFunction(rng, cfg.HiddenActivationFns...)
 			}
 			node := network.NewNode(
-				cfg.IDProvider.Next(),
+				b.innovations.NodeID(),
 				nodeType,
 				bias,
 				activationFn,
@@ -78,12 +102,11 @@ func GenerateGenome(cfg Config) (Genome, error) {
 			if i > 0 {
 				previousLayer := layers[i-1]
 				for _, fromNode := range previousLayer {
-					weight := cfg.RandFloatProvider(cfg.MinWeight, cfg.MaxWeight)
 					connection := network.NewConnection(
-						cfg.IDProvider.Next(),
+						b.innovations.ConnectionID(fromNode.ID, node.ID),
 						fromNode.ID,
 						node.ID,
-						weight,
+						cfg.RandWeight(rng),
 						true,
 					)
 					connections = append(connections, connection)
@@ -95,7 +118,7 @@ func GenerateGenome(cfg Config) (Genome, error) {
 			continue
 		}
 		for nodeNum := 0; nodeNum < cfg.BiasNodes; nodeNum++ {
-			node := network.NewNode(cfg.IDProvider.Next(), network.Bias, 0, network.NoActivation)
+			node := network.NewNode(b.innovations.NodeID(), network.Bias, 0, network.NoActivation)
 			layers[i] = append(layers[i], node)
 		}
 	}
@@ -113,36 +136,91 @@ func CopyGenome(genome Genome) Genome {
 
 	for i, layer := range genome.Layers {
 		cp.Layers[i] = make([]network.Node, len(layer))
-		for j, node := range layer {
-			cp.Layers[i][j] = node
-		}
+		copy(cp.Layers[i], layer)
 	}
-	for i, connection := range genome.Connections {
-		cp.Connections[i] = connection
-	}
+	copy(cp.Connections, genome.Connections)
 	return cp
 }
 
-func MutateGenome(cfg Config, genome Genome) Genome {
-	genome = MutateNodeBiases(cfg, genome)
-	genome = MutateNodeActivations(cfg, genome)
-	genome = MutateConnectionWeights(cfg, genome)
-	genome = MutateAddNode(cfg, genome)
-	genome = MutateDeleteNode(cfg, genome)
-	genome = MutateAddConnection(cfg, genome)
-	genome = MutateDeleteConnection(cfg, genome)
+// RandomizeWeights returns a copy of genome with freshly sampled weights
+// and biases but identical structure and identical gene IDs.
+//
+// This is how an initial population is seeded. Every member must share one
+// genotype so that their genes line up under crossover and the compatibility
+// distance sees them as one species; only the weights differ.
+func (b *Breeder) RandomizeWeights(genome Genome) Genome {
+	cfg, rng := b.cfg, b.rng
+	genome = CopyGenome(genome)
+	for i, layer := range genome.Layers {
+		for j, node := range layer {
+			if !mutableNode(node) {
+				continue
+			}
+			genome.Layers[i][j].Bias = cfg.RandBias(rng)
+		}
+	}
+	for i := range genome.Connections {
+		genome.Connections[i].Weight = cfg.RandWeight(rng)
+	}
 	return genome
 }
 
-func getNodeFromLayers(layers [][]network.Node, nodeID int) network.Node {
+// mutableNode reports whether a node carries learnable parameters. Input and
+// bias nodes do not: they are fixed signal sources.
+func mutableNode(node network.Node) bool {
+	return node.Type == network.Hidden || node.Type == network.Output
+}
+
+// MutateGenome returns a mutated copy of genome, leaving the original alone.
+func (b *Breeder) MutateGenome(genome Genome) Genome {
+	// Copy once. Each mutation below operates in place on this copy.
+	return b.mutateGenome(CopyGenome(genome))
+}
+
+// mutateGenome mutates a genome the caller already owns exclusively, without
+// copying it first. Crossover hands back a freshly built genome that nothing
+// else references, so copying it again before mutating would duplicate every
+// node and connection for nothing.
+func (b *Breeder) mutateGenome(genome Genome) Genome {
+	return b.mutateStructure(b.mutateParameters(genome))
+}
+
+// mutateParameters applies the mutations that only change existing genes.
+//
+// Nothing here allocates a historical marking, so these can run for many
+// genomes at once. They deliberately come before any structural mutation: a
+// node added this generation should start from the weights its split gave it,
+// not be perturbed again on the way out.
+func (b *Breeder) mutateParameters(genome Genome) Genome {
+	genome = b.mutateNodeBiases(genome)
+	genome = b.mutateNodeActivations(genome)
+	genome = b.mutateConnectionWeights(genome)
+	genome = b.mutateToggleEnabled(genome)
+	return genome
+}
+
+// mutateStructure applies the mutations that add or remove genes.
+//
+// Adding a gene draws a historical marking from the shared innovation
+// registry, and the marking a genome gets has to be the same on every run, so
+// these are applied one genome at a time in a fixed order.
+func (b *Breeder) mutateStructure(genome Genome) Genome {
+	genome = b.mutateAddNode(genome)
+	genome = b.mutateDeleteNode(genome)
+	genome = b.mutateAddConnection(genome)
+	genome = b.mutateDeleteConnection(genome)
+	return genome
+}
+
+func getNodeFromLayers(layers [][]network.Node, nodeID int) (network.Node, bool) {
 	for _, layer := range layers {
 		for _, node := range layer {
 			if node.ID == nodeID {
-				return node
+				return node, true
 			}
 		}
 	}
-	return network.Node{}
+	return network.Node{}, false
 }
 
 func getBiasNodes(layers [][]network.Node) []network.Node {
@@ -168,120 +246,55 @@ func getNodeLayer(layers [][]network.Node, nodeID int) int {
 	return -1
 }
 
-func Crossover(cfg Config, best, worst Genome) Genome {
-	childLayers := make(Layers, len(best.Layers))
-	childConnections := make([]network.Connection, 0)
-
-	// Count the number of innovations in each genome
-	bestInnovationCount := make(map[int]int)
-	worstInnovationCount := make(map[int]int)
-	for _, bestLayer := range best.Layers {
-		for _, bestNode := range bestLayer {
-			bestInnovationCount[bestNode.ID]++
-		}
-	}
-	for _, bestConnection := range best.Connections {
-		bestInnovationCount[bestConnection.ID]++
-	}
-	for _, worstLayer := range worst.Layers {
-		for _, worstNode := range worstLayer {
-			worstInnovationCount[worstNode.ID]++
-		}
-	}
-	for _, worstConnection := range worst.Connections {
-		worstInnovationCount[worstConnection.ID]++
-	}
-
-	// Map to store which parent to take the gene from. 1 = best, 2 = worst.
-	innovationParentChoice := make(map[int]int)
-	// Set all genes to inherit from best by default
-	for innovationID, bestCount := range bestInnovationCount {
-		if bestCount < 1 {
-			continue
-		}
-		innovationParentChoice[innovationID] = 1
-	}
-	for innovationID, worstCount := range worstInnovationCount {
-		if worstCount < 1 {
-			continue
-		}
-		if innovationParentChoice[innovationID] == 0 {
-			// Doesn't exist in best, so don't add it
-		} else {
-			// Exists in best + worst
-			// Work out if we should take best or worst gene
-			if util.FloatBetween(0, 1) < cfg.MateBestRate {
-				innovationParentChoice[innovationID] = 1
-			} else {
-				innovationParentChoice[innovationID] = 2
-			}
-		}
-	}
-
-	bestNodes := make(map[int]network.Node)
-	bestNodesLayer := make(map[int]int)
-	for layerNum, layer := range best.Layers {
-		for _, node := range layer {
-			bestNodes[node.ID] = node
-			bestNodesLayer[node.ID] = layerNum
-		}
-	}
-	bestConnections := make(map[int]network.Connection)
-	for _, connection := range best.Connections {
-		bestConnections[connection.ID] = connection
-	}
-	worstNodes := make(map[int]network.Node)
-	worstNodesLayer := make(map[int]int)
-	for layerNum, layer := range worst.Layers {
+// Crossover produces a child from two parents, best being the fitter of the two.
+//
+// Following the NEAT paper: genes present in both parents (matching genes,
+// identified by their shared historical marking) take their value from either
+// parent, while disjoint and excess genes are inherited from the fitter parent
+// only. The child therefore has exactly the fitter parent's structure, which
+// also keeps its input and output nodes in their original order - permuting
+// them would silently rewire which input feeds which sensor.
+func (b *Breeder) Crossover(best, worst Genome) Genome {
+	cfg, rng := b.cfg, b.rng
+	worstNodes := make(map[int]network.Node, worst.NumNodes())
+	for _, layer := range worst.Layers {
 		for _, node := range layer {
 			worstNodes[node.ID] = node
-			worstNodesLayer[node.ID] = layerNum
 		}
 	}
-	worstConnections := make(map[int]network.Connection)
+	worstConnections := make(map[int]network.Connection, len(worst.Connections))
 	for _, connection := range worst.Connections {
 		worstConnections[connection.ID] = connection
 	}
 
-	// Add each node that is chosen from best
-	for _, bestLayer := range best.Layers {
-		for _, bestNode := range bestLayer {
-			parentChoice := innovationParentChoice[bestNode.ID]
-			layer := bestNodesLayer[bestNode.ID]
-			if parentChoice == 1 {
-				childLayers[layer] = append(childLayers[layer], bestNode)
+	childLayers := make(Layers, len(best.Layers))
+	for i, layer := range best.Layers {
+		childLayers[i] = make([]network.Node, len(layer))
+		for j, bestNode := range layer {
+			node := bestNode
+			// Matching gene: take the parameters from either parent.
+			if worstNode, ok := worstNodes[bestNode.ID]; ok && !cfg.Chance(rng, cfg.MateBestRate) {
+				node.Bias = worstNode.Bias
+				node.ActivationFn = worstNode.ActivationFn
 			}
+			childLayers[i][j] = node
 		}
 	}
 
-	// Add each node that is chosen from worst
-	for _, worstLayer := range worst.Layers {
-		for _, worstNode := range worstLayer {
-			parentChoice := innovationParentChoice[worstNode.ID]
-			layer := worstNodesLayer[worstNode.ID]
-			// If the node exists in best, take the layer of best instead to preserve and structural changes.
-			if bestLayer, ok := bestNodesLayer[worstNode.ID]; ok {
-				layer = bestLayer
-			}
-			if parentChoice == 2 {
-				childLayers[layer] = append(childLayers[layer], worstNode)
-			}
+	childConnections := make([]network.Connection, len(best.Connections))
+	for i, bestConnection := range best.Connections {
+		connection := bestConnection
+		worstConnection, matching := worstConnections[bestConnection.ID]
+		if matching && !cfg.Chance(rng, cfg.MateBestRate) {
+			connection.Weight = worstConnection.Weight
 		}
-	}
-
-	// Add each connection that is chosen from best
-	for _, bestConnection := range best.Connections {
-		parentChoice := innovationParentChoice[bestConnection.ID]
-		if parentChoice == 1 {
-			childConnections = append(childConnections, bestConnection)
+		if matching && (!bestConnection.Enabled || !worstConnection.Enabled) {
+			// A gene disabled in either parent is usually, but not always,
+			// disabled in the child. The occasional re-enable is what lets a
+			// lineage recover a connection an add-node mutation switched off.
+			connection.Enabled = !cfg.Chance(rng, cfg.MateDisabledRate)
 		}
-	}
-	// Add each connection that is chosen from worst
-	for _, worstConnection := range worst.Connections {
-		parentChoice := innovationParentChoice[worstConnection.ID]
-		if parentChoice == 2 {
-			childConnections = append(childConnections, worstConnection)
-		}
+		childConnections[i] = connection
 	}
 
 	return Genome{
