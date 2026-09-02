@@ -70,8 +70,8 @@ func main() {
 }
 ```
 
-See `example/xor` for a complete program. It solves XOR in around 34
-generations, in 30 out of 30 runs.
+See `example/xor` for a complete program. It solves XOR in around 32
+generations on average, and in 300 out of 300 seeded runs within 80.
 
 ## Concurrency
 
@@ -111,7 +111,9 @@ Things worth knowing:
   simulator - should be created inside it.
 - **A compiled `*network.Network` is immutable and safe to share.** `Activate`
   may be called from any number of goroutines at once. `ActivateInto` is too,
-  provided each goroutine owns its output slice.
+  provided each goroutine owns its output slice. A recurrent network is run
+  with `Step` and a `Memory` the evaluator creates with `net.NewMemory()`; the
+  memory is what makes one network safe to run on many goroutines at once.
 - **Errors and cancellation stop the generation.** An evaluator returning an
   error, or a cancelled context, cancels the remaining workers and surfaces the
   cause. The evaluator receives the context, so a long evaluation can bail out
@@ -183,7 +185,7 @@ output, err := net.Activate(input)          // allocates the output slice
 err = net.ActivateInto(input, output)       // reuses yours; zero allocations
 ```
 
-Compiling costs about the same as a handful of activations, so compile once and
+Compiling costs about the same as a few dozen activations, so compile once and
 reuse. `network.Activate(nodes, connections, input)` is available for one-off
 use but compiles on every call.
 
@@ -215,11 +217,13 @@ evaluate      every genome is compiled and scored concurrently
 record best   the fittest raw result of this generation is recorded
 speciate      genomes are grouped by compatibility distance to a representative
 retarget      the compatibility threshold is nudged towards TargetSpecies
-rank          genomes within species, and species themselves, are sorted
+rank          genomes within species, and species by their best current member
 share         adjusted fitness = raw fitness / species size
 prune         species that have not improved for too long are removed
 cull          only the top SurvivalThreshold of each species may reproduce
-reproduce     offspring are allocated per species in proportion to adjusted fitness
+reproduce     offspring are allocated per species in proportion to the sum of
+              its adjusted fitness, which is its mean raw fitness; parents are
+              picked among the survivors by roulette over fitness
 ```
 
 ## Design notes
@@ -241,17 +245,26 @@ weight of 1 and the outgoing half the original weight, so a new node starts out
 reproducing roughly what it replaced. New structure then has time to be
 optimised rather than being killed off on arrival.
 
-**Feed-forward only.** This implementation differs from the paper here: genomes
-carry explicit layers and connections only ever run from an earlier layer to a
-later one. That guarantees the network is acyclic, so it can be evaluated in a
-single pass, but it means recurrent connections are not supported. Skip
-connections across any number of layers are.
+**Layers.** Genomes carry explicit layers. Feed-forward, connections only ever
+run from an earlier layer to a later one, which guarantees the network is
+acyclic and can be evaluated in a single pass; skip connections across any
+number of layers are allowed. With `Config.Recurrent` set, mutation may also
+wire a connection backwards, within a layer, or from a node to itself. Such a
+connection reads the value its source held at the end of the previous
+activation, so the network has memory: its answer can depend on what it has
+already seen. That is worth having for anything sequential and worth avoiding
+otherwise, since it enlarges the search space and makes an evaluation depend
+on the order it happened in. A recurrent genome compiles with
+`CompileRecurrent` and runs with `Step`; `Config.Recurrent` makes `Run` do
+both.
 
 **Node genes carry parameters.** Unlike the paper, where only connections have
 weights, each hidden and output node has its own bias and activation function,
 and both take part in the compatibility distance. Input and bias nodes are
 structural: an input passes its value through untouched, a bias node emits a
-constant 1, and neither is ever mutated.
+constant 1, and neither is ever mutated. Because every hidden and output node
+already has a bias, a separate bias node adds nothing a genome cannot express,
+only more connections to fit, so `BiasNodes` defaults to zero.
 
 ## Configuration
 
@@ -262,6 +275,8 @@ most affect a run:
 | --- | --- | --- |
 | `PopulationSize` | 150 | Genomes per generation. |
 | `Parallelism` | 0 | Concurrent evaluations. 0 is one per CPU. |
+| `Recurrent` | false | Allow connections that loop back, giving the network memory. |
+| `BiasNodes` | 0 | Explicit bias inputs. Hidden and output nodes carry a bias of their own. |
 | `Seed` | 0 | Fixes the run's random sequence. 0 draws one and records it on `pop.Seed`. |
 | `AddNodeMutationRate` | 0.03 | Structural mutations should be rare, so topology grows slowly. |
 | `AddConnectionMutationRate` | 0.08 | Keep above the matching delete rate or structure erodes. |
@@ -288,8 +303,6 @@ Always carry the returned `Population` forward.
 
 ## Known limitations
 
-- No recurrent connections (see *Feed-forward only* above).
-- No genome serialisation, so a trained network cannot be saved and reloaded.
 - The activation function registry is process-wide. Two populations in one
   process cannot use different implementations of the same activation name.
 - `Species.Genomes` holds indices into `Population.Genomes`; reordering that

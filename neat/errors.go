@@ -12,6 +12,9 @@ var (
 	ErrInvalidConfig = errors.New("neat: invalid config")
 	// ErrNoEvaluator is returned when Evaluate is given a nil evaluator.
 	ErrNoEvaluator = errors.New("neat: evaluator must not be nil")
+	// ErrPopulationShape is returned when a Population's slices do not line
+	// up, such as a fitness slice that is not one entry per genome.
+	ErrPopulationShape = errors.New("neat: population slices do not match")
 	// ErrNoStopCondition is returned when Run is given options that would
 	// never end the run.
 	ErrNoStopCondition = errors.New("neat: run would never terminate")

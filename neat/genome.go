@@ -9,7 +9,11 @@ import (
 type Layers [][]network.Node
 
 func (l Layers) Nodes() []network.Node {
-	nodes := make([]network.Node, 0)
+	count := 0
+	for _, layer := range l {
+		count += len(layer)
+	}
+	nodes := make([]network.Node, 0, count)
 	for _, layer := range l {
 		nodes = append(nodes, layer...)
 	}
@@ -25,8 +29,13 @@ func (g Genome) NumLayers() int {
 	return len(g.Layers)
 }
 func (g Genome) NumNodes() int {
+	return g.Layers.NumNodes()
+}
+
+// NumNodes is the number of nodes across every layer.
+func (l Layers) NumNodes() int {
 	nodes := 0
-	for _, layer := range g.Layers {
+	for _, layer := range l {
 		nodes += len(layer)
 	}
 	return nodes
@@ -46,6 +55,22 @@ func (g Genome) NumGenes() int {
 // it rather than compiling per activation.
 func (g Genome) Compile() (*network.Network, error) {
 	return network.Compile(g.Layers.Nodes(), g.Connections)
+}
+
+// CompileRecurrent builds a runnable network that may contain loops. Nodes are
+// evaluated in layer order, and any connection that does not run forwards in it
+// reads the previous activation. See network.CompileRecurrent.
+func (g Genome) CompileRecurrent() (*network.Network, error) {
+	return network.CompileRecurrent(g.Layers.Nodes(), g.Connections)
+}
+
+// CompileFor builds the genome the way cfg asks for it, which is what a run
+// does. Compile it yourself only when you know which of the two you want.
+func (g Genome) CompileFor(cfg Config) (*network.Network, error) {
+	if cfg.Recurrent {
+		return g.CompileRecurrent()
+	}
+	return g.Compile()
 }
 
 func NewGenome(layers [][]network.Node, connections []network.Connection) Genome {
@@ -212,17 +237,6 @@ func (b *Breeder) mutateStructure(genome Genome) Genome {
 	return genome
 }
 
-func getNodeFromLayers(layers [][]network.Node, nodeID int) (network.Node, bool) {
-	for _, layer := range layers {
-		for _, node := range layer {
-			if node.ID == nodeID {
-				return node, true
-			}
-		}
-	}
-	return network.Node{}, false
-}
-
 func getBiasNodes(layers [][]network.Node) []network.Node {
 	nodes := make([]network.Node, 0)
 	for _, layer := range layers {
@@ -256,13 +270,24 @@ func getNodeLayer(layers [][]network.Node, nodeID int) int {
 // them would silently rewire which input feeds which sensor.
 func (b *Breeder) Crossover(best, worst Genome) Genome {
 	cfg, rng := b.cfg, b.rng
-	worstNodes := make(map[int]network.Node, worst.NumNodes())
+	// The lookup tables are scratch space kept on the breeder and cleared
+	// between children, rather than built afresh: a generation crosses over
+	// most of the population, and two maps per child was a fifth of the time
+	// reproduction took.
+	if b.scratch == nil {
+		b.scratch = &crossoverScratch{
+			nodes:       make(map[int]network.Node, worst.NumNodes()),
+			connections: make(map[int]network.Connection, len(worst.Connections)),
+		}
+	}
+	worstNodes, worstConnections := b.scratch.nodes, b.scratch.connections
+	clear(worstNodes)
+	clear(worstConnections)
 	for _, layer := range worst.Layers {
 		for _, node := range layer {
 			worstNodes[node.ID] = node
 		}
 	}
-	worstConnections := make(map[int]network.Connection, len(worst.Connections))
 	for _, connection := range worst.Connections {
 		worstConnections[connection.ID] = connection
 	}

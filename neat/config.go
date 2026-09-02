@@ -14,10 +14,35 @@ type Config struct {
 	PopulationSize int
 	// Number of nodes within each layer
 	Layers []int
-	// Number of bias nodes
+	// BiasNodes is the number of bias nodes, constant sources of 1 in the
+	// input layer, to start every genome with.
+	//
+	// Hidden and output nodes carry a bias of their own, so a bias node adds
+	// nothing a genome cannot already express; what it adds is a connection
+	// per node for the search to fit. On XOR one bias node costs about forty
+	// percent more generations to a solution. The default is therefore none.
+	// Set it when an evaluator or a tool reading genomes expects the classic
+	// NEAT layout with an explicit bias input.
 	BiasNodes int
-	// Activation functions
-	InputActivationFn   network.ActivationFunctionName
+	// Recurrent lets mutation wire connections that loop back, and compiles
+	// genomes with CompileRecurrent so that those connections read the previous
+	// activation instead of being a cycle.
+	//
+	// It gives a network memory, which a feed-forward one cannot have at all: its
+	// answer can depend on what it has already seen rather than only on what it
+	// is being shown. That is worth having for anything sequential, and worth
+	// avoiding otherwise - it enlarges the search space and makes an evaluation
+	// depend on the order it happened in.
+	Recurrent bool
+	// InputActivationFn is recorded on the input nodes of every genome but is
+	// never applied: an input node is a sensor and passes its value through
+	// untouched, whatever it names. It exists so a genome states what it was
+	// built with; leave it at the default unless something reading genomes
+	// expects otherwise.
+	InputActivationFn network.ActivationFunctionName
+	// OutputActivationFn is the activation of every output node. It is fixed
+	// by the config rather than mutated because it defines the range the
+	// caller reads results in.
 	OutputActivationFn  network.ActivationFunctionName
 	HiddenActivationFns []network.ActivationFunctionName // Activation functions available for hidden nodes.
 	// Node configuration
@@ -98,7 +123,7 @@ func DefaultConfig(layers ...int) Config {
 
 		Layers: layers,
 
-		BiasNodes: 1,
+		BiasNodes: 0,
 
 		InputActivationFn:  network.NoActivation,
 		OutputActivationFn: network.Sigmoid,

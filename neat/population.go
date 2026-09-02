@@ -173,30 +173,49 @@ func Run(ctx context.Context, pop Population, eval Evaluator, opts RunOptions) (
 	return pop, nil
 }
 
-// sanitiseFitness replaces any non-finite fitness with the lowest finite
-// fitness in the population.
+// sanitiseFitness replaces any non-finite fitness with a finite one: NaN and
+// -Inf become the lowest finite fitness in the population, +Inf the highest.
 //
-// A NaN or -Inf from an evaluator would otherwise propagate: shifting
-// fitnesses to be non-negative turns a single -Inf into an infinite range,
-// which makes the roulette selection and the offspring allocation produce
-// garbage for every genome, not just the broken one.
+// A non-finite fitness would otherwise propagate: shifting fitnesses to be
+// non-negative turns a single infinity into an infinite range, which makes
+// the offspring allocation produce garbage for every genome, not just the
+// broken one. +Inf is kept at the top rather than sent to the bottom because
+// an evaluator that returns it means "cannot be beaten", and turning that
+// into the worst score in the population would silently invert the one
+// result it was most sure of.
 func sanitiseFitness(pop Population) Population {
-	lowest := math.Inf(1)
+	lowest, highest := math.Inf(1), math.Inf(-1)
 	for _, fitness := range pop.GenomeFitness {
-		if !math.IsInf(fitness, 0) && !math.IsNaN(fitness) && fitness < lowest {
-			lowest = fitness
+		if math.IsInf(fitness, 0) || math.IsNaN(fitness) {
+			continue
 		}
+		lowest = math.Min(lowest, fitness)
+		highest = math.Max(highest, fitness)
 	}
 	if math.IsInf(lowest, 0) {
 		// Nothing finite to fall back on.
-		lowest = 0
+		lowest, highest = 0, 0
 	}
 	for i, fitness := range pop.GenomeFitness {
-		if math.IsInf(fitness, 0) || math.IsNaN(fitness) {
+		switch {
+		case math.IsInf(fitness, 1):
+			pop.GenomeFitness[i] = highest
+		case math.IsInf(fitness, -1) || math.IsNaN(fitness):
 			pop.GenomeFitness[i] = lowest
 		}
 	}
 	return pop
+}
+
+// worstFitness is the lowest fitness in the population, the floor that
+// selection measures fitness from so a negative fitness function still gives
+// every genome a non-negative share.
+func (p Population) worstFitness() float64 {
+	worst := math.Inf(1)
+	for _, fitness := range p.GenomeFitness {
+		worst = math.Min(worst, fitness)
+	}
+	return worst
 }
 
 // Evolve replaces the population with the next generation, allocating
@@ -264,20 +283,23 @@ func Evolve(pop Population) Population {
 
 	// Guard the population size against rounding and against every species
 	// dying out at once.
+	// Species were appended in order, so the last species always owns the
+	// tail of newGenomes: dropping the last genome is dropping that species'
+	// last member, and a species left with no members goes with it.
 	for len(newGenomes) > pop.Cfg.PopulationSize {
 		last := len(newSpecies) - 1
 		if last < 0 {
 			newGenomes = newGenomes[:pop.Cfg.PopulationSize]
 			break
 		}
-		if len(newSpecies[last].Genomes) <= 1 {
-			newSpecies = newSpecies[:last]
-			sourceSpecies = sourceSpecies[:last]
-			continue
-		}
-		newSpecies[last].Genomes = newSpecies[last].Genomes[:len(newSpecies[last].Genomes)-1]
+		members := newSpecies[last].Genomes
+		newSpecies[last].Genomes = members[:len(members)-1]
 		newGenomes = newGenomes[:len(newGenomes)-1]
 		slots = dropSlot(slots, len(newGenomes))
+		if len(newSpecies[last].Genomes) == 0 {
+			newSpecies = newSpecies[:last]
+			sourceSpecies = sourceSpecies[:last]
+		}
 	}
 	for len(newGenomes) < pop.Cfg.PopulationSize {
 		if len(newSpecies) == 0 {
@@ -347,6 +369,7 @@ func fillOffspring(pop Population, slots []offspringSlot, genomes []Genome) {
 
 	// Breed in parallel. This reads the previous generation, which nothing is
 	// writing to, and otherwise touches only the worker's own state.
+	floor := pop.worstFitness()
 	workers := reproductionWorkers(pop.Cfg.Parallelism, len(slots))
 	var next atomic.Int64
 	var wg sync.WaitGroup
@@ -362,7 +385,7 @@ func fillOffspring(pop Population, slots []offspringSlot, genomes []Genome) {
 					return
 				}
 				source.Seed(slots[i].breedSeed, slots[i].breedSeed^pcgStreamOffset)
-				slots[i].genome = breeder.breed(pop, slots[i].species)
+				slots[i].genome = breeder.breed(pop, slots[i].species, floor)
 			}
 		}()
 	}

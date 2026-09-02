@@ -2,7 +2,6 @@ package neat
 
 import (
 	"github.com/jmwri/neatgo/v2/internal/util"
-	"github.com/jmwri/neatgo/v2/network"
 )
 
 // MutateDeleteConnection returns a copy of genome with a connection removed.
@@ -27,14 +26,16 @@ func (b *Breeder) mutateDeleteConnection(genome Genome) Genome {
 }
 
 func getConnectionIndexForDeletion(rng *Rand, genome Genome) int {
-	deletableConnections := make([]int, 0)
+	biasNodes := make(map[int]struct{})
+	for _, node := range getBiasNodes(genome.Layers) {
+		biasNodes[node.ID] = struct{}{}
+	}
+	deletableConnections := make([]int, 0, len(genome.Connections))
 	for i, connection := range genome.Connections {
-		fromNode, fromOK := getNodeFromLayers(genome.Layers, connection.From)
-		toNode, toOK := getNodeFromLayers(genome.Layers, connection.To)
-		if fromOK && fromNode.Type == network.Bias {
+		if _, ok := biasNodes[connection.From]; ok {
 			continue
 		}
-		if toOK && toNode.Type == network.Bias {
+		if _, ok := biasNodes[connection.To]; ok {
 			continue
 		}
 		deletableConnections = append(deletableConnections, i)

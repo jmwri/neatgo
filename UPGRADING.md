@@ -125,8 +125,10 @@ Added: `Seed`, `Parallelism`, `WeightInitStdDev`, `BiasInitStdDev`,
 `SpeciesCompatThresholdAdjust`, `MinSpeciesCompatThreshold`.
 
 Defaults changed substantially. `DefaultConfig` in v1 could not solve XOR;
-in v2 it does, in around 35 generations. If you carried v1 values across, drop
-them and start from `DefaultConfig`.
+in v2 it does, in around 32 generations. If you carried v1 values across, drop
+them and start from `DefaultConfig`. Note that `BiasNodes` now defaults to 0:
+hidden and output nodes carry their own bias, and an explicit bias node only
+slows the search.
 
 `GeneratePopulation` now validates the config and reports every problem at once.
 

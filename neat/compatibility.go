@@ -1,15 +1,24 @@
 package neat
 
 import (
+	"cmp"
 	"math"
 	"slices"
 )
 
 // gene is one historical marking paired with the parameter it carries: a node's
 // bias, or a connection's weight.
+//
+// An input or bias node has no parameter: it is a fixed signal source that
+// every genome in the run shares. It still counts as a gene when matching, but
+// its value is left out of the mean parameter difference. Averaging a zero
+// difference in for every input would dilute the bias term by however many
+// inputs the problem has, so that the same coefficient meant something
+// different on every task.
 type gene struct {
 	id    int
 	value float64
+	fixed bool
 }
 
 // geneIndex holds a genome's genes sorted by historical marking.
@@ -32,13 +41,13 @@ func newGeneIndex(genome Genome) geneIndex {
 	}
 	for _, layer := range genome.Layers {
 		for _, node := range layer {
-			index.nodes = append(index.nodes, gene{id: node.ID, value: node.Bias})
+			index.nodes = append(index.nodes, gene{id: node.ID, value: node.Bias, fixed: !mutableNode(node)})
 		}
 	}
 	for _, connection := range genome.Connections {
 		index.conns = append(index.conns, gene{id: connection.ID, value: connection.Weight})
 	}
-	byID := func(a, b gene) int { return a.id - b.id }
+	byID := func(a, b gene) int { return cmp.Compare(a.id, b.id) }
 	slices.SortFunc(index.nodes, byID)
 	slices.SortFunc(index.conns, byID)
 	return index
@@ -89,14 +98,17 @@ func compatibility(cfg Config, a, b geneIndex) float64 {
 
 // walkGenes steps down two marking-ordered gene lists together, summing the
 // parameter difference of the genes they share and counting the ones only one
-// of them holds. Allocates nothing.
+// of them holds. Genes with no parameter are matched but not measured.
+// Allocates nothing.
 func walkGenes(a, b []gene) (diff float64, matched, unmatched int) {
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
 		switch {
 		case a[i].id == b[j].id:
-			diff += math.Abs(a[i].value - b[j].value)
-			matched++
+			if !a[i].fixed {
+				diff += math.Abs(a[i].value - b[j].value)
+				matched++
+			}
 			i++
 			j++
 		case a[i].id < b[j].id:

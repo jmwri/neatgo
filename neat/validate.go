@@ -35,24 +35,30 @@ func (c Config) Validate() error {
 		bad("BiasNodes must not be negative, got %d", c.BiasNodes)
 	}
 
-	rates := map[string]float64{
-		"AddNodeMutationRate":          c.AddNodeMutationRate,
-		"DeleteNodeMutationRate":       c.DeleteNodeMutationRate,
-		"BiasMutationRate":             c.BiasMutationRate,
-		"BiasReplaceRate":              c.BiasReplaceRate,
-		"ActivationMutationRate":       c.ActivationMutationRate,
-		"AddConnectionMutationRate":    c.AddConnectionMutationRate,
-		"DeleteConnectionMutationRate": c.DeleteConnectionMutationRate,
-		"WeightMutationRate":           c.WeightMutationRate,
-		"WeightReplaceRate":            c.WeightReplaceRate,
-		"EnabledMutationRate":          c.EnabledMutationRate,
-		"MateCrossoverRate":            c.MateCrossoverRate,
-		"MateBestRate":                 c.MateBestRate,
-		"MateDisabledRate":             c.MateDisabledRate,
+	// Slices rather than maps, so the problems come out in the same order on
+	// every call and the message can be compared or matched in a test.
+	type setting struct {
+		name  string
+		value float64
 	}
-	for name, rate := range rates {
-		if rate < 0 || rate > 1 {
-			bad("%s is a probability and must be between 0 and 1, got %v", name, rate)
+	rates := []setting{
+		{"AddNodeMutationRate", c.AddNodeMutationRate},
+		{"DeleteNodeMutationRate", c.DeleteNodeMutationRate},
+		{"BiasMutationRate", c.BiasMutationRate},
+		{"BiasReplaceRate", c.BiasReplaceRate},
+		{"ActivationMutationRate", c.ActivationMutationRate},
+		{"AddConnectionMutationRate", c.AddConnectionMutationRate},
+		{"DeleteConnectionMutationRate", c.DeleteConnectionMutationRate},
+		{"WeightMutationRate", c.WeightMutationRate},
+		{"WeightReplaceRate", c.WeightReplaceRate},
+		{"EnabledMutationRate", c.EnabledMutationRate},
+		{"MateCrossoverRate", c.MateCrossoverRate},
+		{"MateBestRate", c.MateBestRate},
+		{"MateDisabledRate", c.MateDisabledRate},
+	}
+	for _, rate := range rates {
+		if rate.value < 0 || rate.value > 1 {
+			bad("%s is a probability and must be between 0 and 1, got %v", rate.name, rate.value)
 		}
 	}
 
@@ -62,15 +68,15 @@ func (c Config) Validate() error {
 	if c.MinBias > c.MaxBias {
 		bad("MinBias (%v) must not be greater than MaxBias (%v)", c.MinBias, c.MaxBias)
 	}
-	spreads := map[string]float64{
-		"WeightInitStdDev":    c.WeightInitStdDev,
-		"WeightMutationPower": c.WeightMutationPower,
-		"BiasInitStdDev":      c.BiasInitStdDev,
-		"BiasMutationPower":   c.BiasMutationPower,
+	spreads := []setting{
+		{"WeightInitStdDev", c.WeightInitStdDev},
+		{"WeightMutationPower", c.WeightMutationPower},
+		{"BiasInitStdDev", c.BiasInitStdDev},
+		{"BiasMutationPower", c.BiasMutationPower},
 	}
-	for name, spread := range spreads {
-		if spread < 0 {
-			bad("%s must not be negative, got %v", name, spread)
+	for _, spread := range spreads {
+		if spread.value < 0 {
+			bad("%s must not be negative, got %v", spread.name, spread.value)
 		}
 	}
 
@@ -102,13 +108,16 @@ func (c Config) Validate() error {
 		bad("Parallelism must be Unlimited, 0, or a positive worker count, got %d", c.Parallelism)
 	}
 
-	activations := map[string]network.ActivationFunctionName{
-		"InputActivationFn":  c.InputActivationFn,
-		"OutputActivationFn": c.OutputActivationFn,
+	activations := []struct {
+		name string
+		fn   network.ActivationFunctionName
+	}{
+		{"InputActivationFn", c.InputActivationFn},
+		{"OutputActivationFn", c.OutputActivationFn},
 	}
-	for name, fn := range activations {
-		if network.ActivationRegistry.Get(fn) == nil {
-			bad("%s %q is not registered", name, fn)
+	for _, activation := range activations {
+		if network.ActivationRegistry.Get(activation.fn) == nil {
+			bad("%s %q is not registered", activation.name, activation.fn)
 		}
 	}
 	if len(c.HiddenActivationFns) == 0 {

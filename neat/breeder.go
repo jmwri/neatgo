@@ -1,5 +1,7 @@
 package neat
 
+import "github.com/jmwri/neatgo/v2/network"
+
 // Breeder produces genomes: it bundles the three things every mutation needs
 // together, the settings, the run's random source, and the innovation registry.
 //
@@ -14,6 +16,17 @@ type Breeder struct {
 	cfg         Config
 	rng         *Rand
 	innovations *Innovations
+	// scratch is reused by Crossover. It is owned by this Breeder alone: the
+	// copies made by withRand and withConfig get their own, which is what
+	// keeps the parallel breeding workers from sharing it.
+	scratch *crossoverScratch
+}
+
+// crossoverScratch is the less fit parent's genes indexed by historical
+// marking, kept between children so Crossover does not allocate per child.
+type crossoverScratch struct {
+	nodes       map[int]network.Node
+	connections map[int]network.Connection
 }
 
 // NewBreeder returns a Breeder. Passing a nil innovation registry or random

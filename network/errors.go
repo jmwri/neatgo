@@ -18,9 +18,17 @@ var (
 	ErrUnknownActivation = errors.New("network: unknown activation function")
 	// ErrDuplicateNode is returned when two nodes share an ID.
 	ErrDuplicateNode = errors.New("network: duplicate node id")
+	// ErrUnknownNodeType is returned when a node's Type is not one of Input,
+	// Bias, Hidden or Output.
+	ErrUnknownNodeType = errors.New("network: unknown node type")
 	// ErrInputSize is returned when the input does not match the number of
 	// input nodes.
 	ErrInputSize = errors.New("network: wrong number of inputs")
 	// ErrOutputSize is returned when an ActivateInto buffer is the wrong size.
 	ErrOutputSize = errors.New("network: wrong output buffer size")
+	// ErrNeedsMemory is returned when a recurrent network is activated without
+	// the memory it carries between steps.
+	ErrNeedsMemory = errors.New("network: recurrent network needs a Memory, use Step")
+	// ErrMemorySize is returned when a Memory belongs to a different network.
+	ErrMemorySize = errors.New("network: memory is the wrong size for this network")
 )

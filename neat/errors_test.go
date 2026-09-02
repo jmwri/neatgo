@@ -94,8 +94,12 @@ func TestNetworkErrors_AreDiscriminable(t *testing.T) {
 		cfg.PopulationSize = 4
 		pop, err := neat.GeneratePopulation(cfg)
 		require.NoError(t, err)
+		// An output feeding itself. A connection back into an input node
+		// would not do: inputs ignore what is wired into them, so compile
+		// ignores such an edge rather than calling it a cycle.
+		output := pop.Genomes[0].Layers[1][0].ID
 		pop.Genomes[0].Connections = append(pop.Genomes[0].Connections,
-			network.Connection{ID: 9999, From: pop.Genomes[0].Layers[1][0].ID, To: pop.Genomes[0].Layers[0][0].ID, Weight: 1, Enabled: true})
+			network.Connection{ID: 9999, From: output, To: output, Weight: 1, Enabled: true})
 
 		err = neat.Evaluate(context.Background(), pop, constantFitness(1))
 		assert.ErrorIs(t, err, neat.ErrCompile)

@@ -1,7 +1,9 @@
 package neat
 
 import (
+	"cmp"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/jmwri/neatgo/v2/internal/util"
@@ -22,8 +24,10 @@ type Species struct {
 	AvgFitness float64
 	// BestFitness is the highest raw fitness in the species.
 	BestFitness float64
-	// AdjustedFitness is the mean fitness of the species' members after
-	// fitness sharing, and is what offspring are allocated in proportion to.
+	// AdjustedFitness is the sum of the members' fitness after sharing, which
+	// is what offspring are allocated in proportion to. Since sharing divides
+	// each member's fitness by the species size, this is the species' mean raw
+	// fitness.
 	AdjustedFitness float64
 	Genomes         []int
 	Representative  Genome
@@ -141,15 +145,33 @@ func AdjustCompatThreshold(pop Population) Population {
 
 // RankSpecies sorts the genomes within each species, and the species
 // themselves, from fittest to least fit.
+//
+// Species are ranked by the fitness of their best current member, which is
+// what the rank is used for: deciding which species are doing well enough now
+// to be protected from being culled as stale, and which breed first when the
+// population is topped up. Ranking by the best a species has ever produced
+// would keep a species whose members have since scattered to other species,
+// or been overtaken, at the top for the rest of the run on the strength of
+// one ancestor.
+//
+// Both sorts are stable, so equally fit genomes keep their index order and
+// equally fit species their existing order. Which of two tied genomes is the
+// elite decides what the next generation is built from, so it must follow from
+// the population and not from which sort algorithm happened to be in use.
 func RankSpecies(pop Population) Population {
 	for i := range pop.Species {
-		genomes := pop.Species[i].Genomes
-		sort.Slice(genomes, func(a, b int) bool {
-			return pop.GenomeFitness[genomes[a]] > pop.GenomeFitness[genomes[b]]
+		slices.SortStableFunc(pop.Species[i].Genomes, func(a, b int) int {
+			return cmp.Compare(pop.GenomeFitness[b], pop.GenomeFitness[a])
 		})
 	}
-	sort.SliceStable(pop.Species, func(i, j int) bool {
-		return pop.Species[i].BestFitness > pop.Species[j].BestFitness
+	currentBest := func(species Species) float64 {
+		if len(species.Genomes) == 0 {
+			return math.Inf(-1)
+		}
+		return pop.GenomeFitness[species.Genomes[0]]
+	}
+	slices.SortStableFunc(pop.Species, func(a, b Species) int {
+		return cmp.Compare(currentBest(b), currentBest(a))
 	})
 	return pop
 }
@@ -158,9 +180,15 @@ func RankSpecies(pop Population) Population {
 // divided by the size of its species.
 //
 // Sharing is what stops a single successful topology from swamping the
-// population - a large species has to be proportionally fitter to earn the
-// same number of offspring. The raw fitness is left untouched so that
-// reporting and best-genome tracking stay honest.
+// population. Offspring go to a species in proportion to the sum of its
+// members' adjusted fitness, which is its mean raw fitness: a species twice
+// the size earns no more for it, and has to be fitter per member to grow. The
+// sum is what the paper allocates by. Dividing it by the size again, to get
+// a mean of the adjusted values, penalises size twice over: a species then
+// loses offspring for having grown, shrinks, wins them back, and the
+// population oscillates between species instead of settling where the
+// fitness says it should. The raw fitness is left untouched so that reporting
+// and best-genome tracking stay honest.
 func FitnessSharing(pop Population) Population {
 	for i := range pop.GenomeAdjustedFitness {
 		pop.GenomeAdjustedFitness[i] = 0
@@ -176,7 +204,7 @@ func FitnessSharing(pop Population) Population {
 			pop.GenomeAdjustedFitness[genomeIndex] = adjusted
 			sum += adjusted
 		}
-		pop.Species[i].AdjustedFitness = sum / size
+		pop.Species[i].AdjustedFitness = sum
 	}
 	return pop
 }
@@ -223,9 +251,13 @@ func KillStaleSpecies(pop Population) Population {
 // proportion to their adjusted fitness.
 //
 // The allocation is exact: largest-remainder rounding distributes the leftover
-// slots, so the population size never drifts. Adjusted fitnesses are shifted to
-// be non-negative first, because a fitness function that returns negative
-// values would otherwise produce negative or nonsensical shares.
+// slots, so the population size never drifts. Fitnesses are shifted so that the
+// worst genome in the population sits at zero, because a fitness function that
+// returns negative values would otherwise produce negative or nonsensical
+// shares. Shifting by the worst genome rather than the worst species means a
+// species only gets nothing when every member of it is as bad as the
+// population's worst; shifting by the worst species would hand the second
+// best of two species the minimum allowance no matter how close it was.
 func getDesiredOffspringCount(pop Population) []int {
 	counts := make([]int, len(pop.Species))
 	if len(pop.Species) == 0 {
@@ -233,7 +265,15 @@ func getDesiredOffspringCount(pop Population) []int {
 	}
 
 	minFitness := math.Inf(1)
+	for _, fitness := range pop.GenomeFitness {
+		if fitness < minFitness {
+			minFitness = fitness
+		}
+	}
 	for _, species := range pop.Species {
+		// A species' adjusted fitness is its mean, which can only be below
+		// the population's minimum if the population has been replaced since
+		// it was computed; keep the shares non-negative either way.
 		if species.AdjustedFitness < minFitness {
 			minFitness = species.AdjustedFitness
 		}
@@ -301,7 +341,7 @@ func getDesiredOffspringCount(pop Population) []int {
 // GetOffspring produces a single mutated child from the given species.
 func GetOffspring(pop Population, species Species) Genome {
 	breeder := pop.Breeder
-	return breeder.mutateStructure(breeder.breed(pop, species))
+	return breeder.mutateStructure(breeder.breed(pop, species, pop.worstFitness()))
 }
 
 // breed selects parents, produces a child, and applies every mutation that does
@@ -310,7 +350,10 @@ func GetOffspring(pop Population, species Species) Genome {
 // This is the expensive half of making an offspring and it touches no shared
 // state beyond the read-only population, so many can run at once. The
 // structural half is applied separately by mutateStructure.
-func (b *Breeder) breed(pop Population, species Species) Genome {
+//
+// floor is the population's worst fitness, which parent selection measures
+// fitness from; it is passed in so a generation computes it once.
+func (b *Breeder) breed(pop Population, species Species, floor float64) Genome {
 	rng := b.rng
 	if len(species.Genomes) == 0 {
 		return Genome{}
@@ -318,8 +361,7 @@ func (b *Breeder) breed(pop Population, species Species) Genome {
 
 	var child Genome
 	if len(species.Genomes) > 1 && b.cfg.Chance(rng, b.cfg.MateCrossoverRate) {
-		fitter := getSpeciesGenomeForCrossover(pop, rng, species)
-		other := getSpeciesGenomeForCrossover(pop, rng, species)
+		fitter, other := selectParents(pop, rng, species, floor)
 		if pop.GenomeFitness[fitter] < pop.GenomeFitness[other] {
 			fitter, other = other, fitter
 		}
@@ -334,33 +376,41 @@ func (b *Breeder) breed(pop Population, species Species) Genome {
 	return b.mutateParameters(child)
 }
 
-// getSpeciesGenomeForCrossover picks a parent by roulette over the species'
-// fitnesses. Fitnesses are shifted to be non-negative so that a fitness
-// function returning negative values still produces a valid distribution.
-func getSpeciesGenomeForCrossover(pop Population, rng *Rand, species Species) int {
-	minFitness := math.Inf(1)
-	for _, genomeIndex := range species.Genomes {
-		if pop.GenomeFitness[genomeIndex] < minFitness {
-			minFitness = pop.GenomeFitness[genomeIndex]
-		}
-	}
+// selectParents picks two parents from the species' surviving members by
+// roulette over their fitness.
+//
+// Fitness is measured from the worst genome in the whole population, the same
+// floor the offspring allocation uses, so that every survivor has a share
+// unless it is as bad as the population's worst. Measuring from the worst
+// survivor instead, as this once did, gives that survivor no share at all -
+// and a species cut down to two members, the most common size late in a run,
+// then only ever mates its best with itself. Its crossover is a clone, and the
+// second parent the cull kept for it is never used.
+//
+// Picking uniformly among survivors, as some implementations do, was tried
+// and is measurably slower to find a solution: the cull alone applies too
+// little pressure within a species.
+func selectParents(pop Population, rng *Rand, species Species, floor float64) (int, int) {
+	return rouletteParent(pop, rng, species, floor), rouletteParent(pop, rng, species, floor)
+}
 
-	fitnessSum := 0.0
+func rouletteParent(pop Population, rng *Rand, species Species, floor float64) int {
+	total := 0.0
 	for _, genomeIndex := range species.Genomes {
-		fitnessSum += pop.GenomeFitness[genomeIndex] - minFitness
+		total += pop.GenomeFitness[genomeIndex] - floor
 	}
-	if fitnessSum <= 0 {
-		// Every member is equally fit, so pick uniformly.
+	if total <= 0 {
+		// Every member is as fit as the worst in the population, so pick
+		// uniformly.
 		return util.RandSliceElement(rng, species.Genomes)
 	}
-
-	chosen := util.FloatBetween(rng, 0, fitnessSum)
+	chosen := util.FloatBetween(rng, 0, total)
 	running := 0.0
 	for _, genomeIndex := range species.Genomes {
-		running += pop.GenomeFitness[genomeIndex] - minFitness
+		running += pop.GenomeFitness[genomeIndex] - floor
 		if running > chosen {
 			return genomeIndex
 		}
 	}
-	return species.Genomes[0]
+	return species.Genomes[len(species.Genomes)-1]
 }

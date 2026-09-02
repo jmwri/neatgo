@@ -31,10 +31,6 @@ func (b *Breeder) mutateAddNode(genome Genome) Genome {
 	connection := genome.Connections[connectionIndex]
 	fromLayer := getNodeLayer(genome.Layers, connection.From)
 	toLayer := getNodeLayer(genome.Layers, connection.To)
-	if fromLayer == -1 || toLayer == -1 || toLayer <= fromLayer {
-		// Dangling or non feed-forward connection; nothing safe to split.
-		return genome
-	}
 
 	// The same split, discovered by any genome, yields the same three gene IDs.
 	split := b.innovations.SplitConnection(connection.ID, connection.From, connection.To)
@@ -64,13 +60,31 @@ func (b *Breeder) mutateAddNode(genome Genome) Genome {
 	return genome
 }
 
-func (b *Breeder) validConnectionForAddNode(rng *Rand, genome Genome) int {
-	presentNodes := make(map[int]struct{}, genome.NumNodes())
-	for _, layer := range genome.Layers {
+// nodePlace is where a node sits in a genome, for the lookups a structural
+// mutation makes for every connection it considers. Building this once is
+// what keeps choosing a connection linear in the genome rather than quadratic.
+type nodePlace struct {
+	node  network.Node
+	layer int
+}
+
+func indexNodes(layers Layers) map[int]nodePlace {
+	places := make(map[int]nodePlace, layers.NumNodes())
+	for i, layer := range layers {
 		for _, node := range layer {
-			presentNodes[node.ID] = struct{}{}
+			places[node.ID] = nodePlace{node: node, layer: i}
 		}
 	}
+	return places
+}
+
+// validConnectionForAddNode picks a connection that can be split, or -1 if
+// there is none. Splitting is only defined for a connection that runs forwards
+// in layer order: a backward one has no layer strictly between its ends, and a
+// node put anywhere else would turn the loop into something a feed-forward
+// pass could not evaluate.
+func (b *Breeder) validConnectionForAddNode(rng *Rand, genome Genome) int {
+	places := indexNodes(genome.Layers)
 
 	// Build slice of Connections to process in order.
 	// Shuffle the slice.
@@ -90,16 +104,21 @@ func (b *Breeder) validConnectionForAddNode(rng *Rand, genome Genome) int {
 			// contributes nothing.
 			continue
 		}
-		from, ok := getNodeFromLayers(genome.Layers, connection.From)
+		from, ok := places[connection.From]
 		if !ok {
 			continue
 		}
-		to, ok := getNodeFromLayers(genome.Layers, connection.To)
+		to, ok := places[connection.To]
 		if !ok {
 			continue
 		}
-		if from.Type == network.Bias || to.Type == network.Bias {
+		if from.node.Type == network.Bias || to.node.Type == network.Bias {
 			// Don't break any bias Connections
+			continue
+		}
+		if to.layer <= from.layer {
+			// Recurrent: runs backwards or within a layer, so there is
+			// nowhere to put a node between its ends.
 			continue
 		}
 		// Historical markings are stable, so splitting a given connection
@@ -107,7 +126,7 @@ func (b *Breeder) validConnectionForAddNode(rng *Rand, genome Genome) int {
 		// node - because the connection was re-enabled after an earlier split -
 		// splitting again would add a second copy of the same gene.
 		if split, ok := b.innovations.LookupSplit(connection.ID); ok {
-			if _, exists := presentNodes[split.NodeID]; exists {
+			if _, exists := places[split.NodeID]; exists {
 				continue
 			}
 		}

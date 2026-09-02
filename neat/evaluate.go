@@ -40,6 +40,12 @@ func Evaluate(ctx context.Context, pop Population, eval Evaluator) error {
 	if len(pop.Genomes) == 0 {
 		return nil
 	}
+	if len(pop.GenomeFitness) != len(pop.Genomes) {
+		// Checked here rather than left to the index expression below, which
+		// would panic on a worker goroutine and take the whole process down
+		// with it.
+		return fmt.Errorf("%w: %d genomes but %d fitness slots", ErrPopulationShape, len(pop.Genomes), len(pop.GenomeFitness))
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -77,7 +83,7 @@ func Evaluate(ctx context.Context, pop Population, eval Evaluator) error {
 					return
 				}
 
-				net, err := pop.Genomes[i].Compile()
+				net, err := pop.Genomes[i].CompileFor(pop.Cfg)
 				if err != nil {
 					fail(fmt.Errorf("%w: genome %d: %w", ErrCompile, i, err))
 					return

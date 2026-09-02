@@ -141,23 +141,37 @@ func IdentityFn(x float64) float64 {
 	return x
 }
 
+// clamp limits x to [lo, hi]. math.Max and math.Min are not used because they
+// special-case NaN and signed zero on every call, which shows up when an
+// activation runs for every node of every genome in a generation. NaN comes
+// through unchanged here as well, since neither comparison holds for it.
+func clamp(x, lo, hi float64) float64 {
+	if x > hi {
+		return hi
+	}
+	if x < lo {
+		return lo
+	}
+	return x
+}
+
 func SigmoidFn(x float64) float64 {
-	x = math.Max(-60, math.Min(60, 5*x))
+	x = clamp(5*x, -60, 60)
 	return 1.0 / (1.0 + math.Exp(-x))
 }
 
 func TanhFn(x float64) float64 {
-	x = math.Max(-60, math.Min(60, 2.5*x))
+	x = clamp(2.5*x, -60, 60)
 	return math.Tanh(x)
 }
 
 func SinFn(x float64) float64 {
-	x = math.Max(-60, math.Min(60, 5*x))
+	x = clamp(5*x, -60, 60)
 	return math.Sin(x)
 }
 
 func GaussFn(x float64) float64 {
-	x = math.Max(-3.4, math.Min(3.4, x))
+	x = clamp(x, -3.4, 3.4)
 	// exp(-5x^2). Note the sign is inside the exponent, not on the squared term.
 	return math.Exp(-5 * x * x)
 }
@@ -194,12 +208,12 @@ func SeluFn(x float64) float64 {
 }
 
 func SoftPlusFn(x float64) float64 {
-	x = math.Max(-60, math.Min(60, 5*x))
+	x = clamp(5*x, -60, 60)
 	return .2 * math.Log(1+math.Exp(x))
 }
 
 func ClampedFn(x float64) float64 {
-	return math.Max(-1, math.Min(1, x))
+	return clamp(x, -1, 1)
 }
 
 func InvFn(x float64) float64 {
@@ -210,13 +224,14 @@ func InvFn(x float64) float64 {
 }
 
 func LogFn(x float64) float64 {
-	x = math.Max(1e-7, x)
+	if x < 1e-7 {
+		x = 1e-7
+	}
 	return math.Log(x)
 }
 
 func ExpFn(x float64) float64 {
-	x = math.Max(-60, math.Min(60, x))
-	return math.Exp(x)
+	return math.Exp(clamp(x, -60, 60))
 }
 
 func AbsFn(x float64) float64 {
@@ -228,9 +243,9 @@ func HatFn(x float64) float64 {
 }
 
 func SquareFn(x float64) float64 {
-	return math.Pow(x, 2)
+	return x * x
 }
 
 func CubeFn(x float64) float64 {
-	return math.Pow(x, 3)
+	return x * x * x
 }
