@@ -30,7 +30,11 @@ type compiledNode struct {
 	kind       nodeKind
 	bias       float64
 	activation ActivationFunction
-	inputs     []weightedInput
+	// activationName is the registry name the activation was looked up by, kept
+	// so that Program can describe the network to something that cannot call the
+	// function itself.
+	activationName ActivationFunctionName
+	inputs         []weightedInput
 	// remembered are the incoming connections that do not run forwards in the
 	// evaluation order. They read the value their source held at the end of the
 	// previous activation, which is what lets a recurrent network carry anything
@@ -236,6 +240,7 @@ func compile(nodes []Node, connections []Connection, recurrent bool) (*Network, 
 				return nil, fmt.Errorf("%w: node %d uses %q", ErrUnknownActivation, node.ID, node.ActivationFn)
 			}
 			compiled.activation = activation
+			compiled.activationName = node.ActivationFn
 
 			// pos is this node's own place in the order; a source not
 			// strictly before it has not been computed yet this pass, so it

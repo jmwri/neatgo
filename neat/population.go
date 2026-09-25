@@ -148,6 +148,14 @@ type RunOptions struct {
 // The population is always returned, including when the run ends early, so the
 // best genome found so far is never lost to an error or a cancelled context.
 func Run(ctx context.Context, pop Population, eval Evaluator, opts RunOptions) (Population, error) {
+	return run(ctx, pop, opts, func(pop Population) (Population, error) {
+		return RunGeneration(ctx, pop, eval)
+	})
+}
+
+// run is the loop shared by Run and RunBatch: everything about when to stop, with
+// the way a generation is evaluated left to step.
+func run(ctx context.Context, pop Population, opts RunOptions, step func(Population) (Population, error)) (Population, error) {
 	if opts.MaxGenerations < 0 {
 		return pop, fmt.Errorf("%w: MaxGenerations must not be negative", ErrNoStopCondition)
 	}
@@ -157,7 +165,7 @@ func Run(ctx context.Context, pop Population, eval Evaluator, opts RunOptions) (
 
 	for opts.MaxGenerations == 0 || pop.Generation < opts.MaxGenerations {
 		var err error
-		pop, err = RunGeneration(ctx, pop, eval)
+		pop, err = step(pop)
 		if err != nil {
 			return pop, err
 		}

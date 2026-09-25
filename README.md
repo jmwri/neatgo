@@ -210,6 +210,69 @@ for i, genome := range pop.Genomes {
 pop = neat.Advance(pop)
 ```
 
+## Using the GPU
+
+If your fitness is "run the network over a fixed dataset and score the answers",
+the whole population can be activated in one go, and that can run on an NVIDIA
+GPU. Describe the evaluation as a `neat.Batch` and hand it an `Activator`:
+
+```go
+dev, err := gpu.Open(0)
+if err != nil {
+    // errors.Is(err, gpu.ErrUnavailable): no NVIDIA GPU or driver here.
+    log.Fatal(err)
+}
+defer dev.Close()
+
+pop, err = neat.RunBatch(ctx, pop, neat.Batch{
+    Activator: dev,             // or neat.CPUActivator{} for the same thing on the CPU
+    Inputs:    dataset,         // one input vector per sample
+    Score: func(net *network.Network, out network.Outputs) (float64, error) {
+        fitness := 0.0
+        for i := 0; i < out.Len(); i++ {
+            fitness -= squaredError(out.Sample(i), answers[i])
+        }
+        return fitness, nil
+    },
+}, neat.RunOptions{MaxGenerations: 500})
+```
+
+`neat.EvaluateBatch` and `neat.RunGenerationBatch` are the `Evaluate` and
+`RunGeneration` equivalents.
+
+The `gpu` package needs only the NVIDIA display driver - no CUDA toolkit, no C
+compiler, no cgo - so the module still builds with a plain `go build`, and
+`gpu.Available()` reports whether a device can be opened. The kernel is embedded
+PTX that the driver compiles for whatever GPU it finds. It targets Maxwell and newer, but has only been run on an RTX 3090 Ti.
+
+**When it helps.** A NEAT network is small and irregular, so a GPU gains nothing
+from a single activation; it gains from volume. On an RTX 3090 Ti against a
+Ryzen 7 5800X3D using all 16 threads, activating 150 evolved networks
+(`go test ./gpu -run xxx -bench .`):
+
+| samples | CPU | GPU |
+|--------:|----:|----:|
+| 4 (XOR) | 0.13 ms | 3.2 ms |
+| 100 | 0.7 ms | 3.2 ms |
+| 1,000 | 5.1 ms | 1.8 ms |
+| 10,000 | 37 ms | 9.9 ms |
+| 100,000 | 337 ms | 75 ms |
+
+Below a few hundred samples the CPU wins; XOR is far too small to benefit. A task
+that must be driven step by step, like a game, cannot be batched and stays on the
+CPU with an `Evaluator`.
+
+**What differs from the CPU.**
+
+- The GPU computes in `float32`, using the hardware's approximate `exp`, `log`,
+  `sin` and reciprocal. Results agree with the CPU to roughly 1e-4, not bit for
+  bit, so the same seed follows a different trajectory on each. Each is
+  reproducible against itself.
+- Networks must be feed-forward: a recurrent population is rejected with
+  `ErrRecurrentBatch`, because a batch treats samples as independent.
+- A network using an activation function you registered or replaced runs on the
+  CPU, alongside the rest, rather than silently using the built-in.
+
 ## How a generation runs
 
 ```
@@ -314,4 +377,5 @@ Always carry the returned `Population` forward.
 go test ./...
 go test ./neat/ -run XXX -bench .
 go test ./network/ -run XXX -bench .
+go test ./gpu/ -run XXX -bench .   # needs an NVIDIA GPU; its tests skip without one
 ```
